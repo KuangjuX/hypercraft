@@ -1,14 +1,27 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+#![no_std]
+#![allow(clippy::upper_case_acronyms)]
+#![deny(warnings)]
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[macro_use]
+// extern crate alloc;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+// #[macro_use]
+// extern crate log;
+
+#[cfg(target_arch = "riscv")]
+#[path = "arch/riscv/mod.rs"]
+mod arch;
+mod memory;
+
+pub type HyperResult<T = ()> = Result<T, HyperError>;
+
+#[derive(Debug, PartialEq)]
+pub enum HyperError {
+    Internal,
+    NotSupported,
+    NoMemory,
+    InvalidParam,
+    OutOfRange,
+    BadState,
+    NotFound,
 }
