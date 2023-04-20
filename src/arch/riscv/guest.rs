@@ -1,3 +1,5 @@
+use crate::GuestPhysMemorySetTrait;
+use crate::HyperResult;
 use alloc::sync::Arc;
 /// Represents a guest within the hypervisor
 pub struct Guest {

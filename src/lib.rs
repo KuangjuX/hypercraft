@@ -1,22 +1,23 @@
 #![no_std]
-#![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::upper_case_acronyms, dead_code)]
 #![deny(warnings)]
 
-// #[macro_use]
-// extern crate alloc;
+extern crate alloc;
 
 // #[macro_use]
 // extern crate log;
 
-#[cfg(target_arch = "riscv")]
+#[cfg(target_arch = "riscv64")]
 #[path = "arch/riscv/mod.rs"]
 mod arch;
+mod ffi;
 mod memory;
 
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
 pub use memory::{
-    GuestPageTable, GuestPhysAddr, GuestPhysMemorySetTrait, HostPhysAddr, HostVirtAddr,
+    GuestPageNum, GuestPageTable, GuestPhysAddr, GuestPhysMemorySetTrait, HostPageNum,
+    HostPhysAddr, HostVirtAddr,
 };
 
 #[derive(Debug, PartialEq)]

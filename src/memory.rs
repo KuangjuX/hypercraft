@@ -3,6 +3,8 @@ use crate::HyperResult;
 pub type GuestPhysAddr = usize;
 pub type HostPhysAddr = usize;
 pub type HostVirtAddr = usize;
+pub type GuestPageNum = usize;
+pub type HostPageNum = usize;
 
 pub trait IntoRvmPageTableFlags: core::fmt::Debug {
     // TODO: cache policy
@@ -13,6 +15,7 @@ pub trait IntoRvmPageTableFlags: core::fmt::Debug {
 }
 
 pub trait GuestPageTable {
+    fn new() -> Self;
     /// Map a guest physical frame starts from `gpa` to the host physical
     /// frame starts from of `hpa` with `flags`.
     fn map(
