@@ -1,5 +1,2 @@
-[target.riscv64gc-unknown-elf.rust-analyzer]
-rustflags = ["--cfg", "target_arch=\"riscv64gc\""]
-
 [build]
-target = "riscv64"
+target = "riscv64gc-unknown-none-elf"
