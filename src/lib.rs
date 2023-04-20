@@ -15,6 +15,10 @@ mod memory;
 
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
+pub use memory::{
+    GuestPageTable, GuestPhysAddr, GuestPhysMemorySetTrait, HostPhysAddr, HostVirtAddr,
+};
+
 #[derive(Debug, PartialEq)]
 pub enum HyperError {
     Internal,

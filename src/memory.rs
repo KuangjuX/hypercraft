@@ -32,3 +32,27 @@ pub trait GuestPageTable {
     /// Get guest page table token.
     fn token(&self) -> usize;
 }
+
+pub trait GuestPhysMemorySetTrait: core::fmt::Debug + Send + Sync {
+    /// Physical address space size.
+    fn size(&self) -> u64;
+
+    /// Add a contiguous guest physical memory region and create mapping,
+    /// with the target host physical address `hpa`(optional)
+    fn map(&self, gpa: GuestPhysAddr, size: usize, hpa: Option<HostPhysAddr>) -> HyperResult;
+
+    /// Remove a guest physical memory region, destroy the mapping.
+    fn unmap(&self, gpa: GuestPhysAddr, size: usize) -> HyperResult;
+
+    /// Read from guest address space.
+    fn read_memory(&self, gpa: GuestPhysAddr, buf: &mut [u8]) -> HyperResult;
+
+    /// Write to guest address space.
+    fn write_memory(&self, gpa: GuestPhysAddr, buf: &[u8]) -> HyperResult;
+
+    /// Called when accessed a non-maped guest physical address `gpa`.
+    fn handle_page_fault(&self, gpa: GuestPhysAddr) -> HyperResult;
+
+    /// Return page table token.
+    fn token(&self) -> usize;
+}
