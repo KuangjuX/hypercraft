@@ -1,6 +1,7 @@
 #![no_std]
-#![allow(clippy::upper_case_acronyms, dead_code)]
+#![allow(clippy::upper_case_acronyms, dead_code, non_upper_case_globals)]
 #![deny(warnings)]
+#![feature(naked_functions, asm_const)]
 
 extern crate alloc;
 
@@ -15,6 +16,8 @@ mod memory;
 
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
+pub use arch::{ArchGuestPageTable, Guest, VCpu};
+pub use hal::HyperCraftHal;
 pub use memory::{
     GuestPageNum, GuestPageTable, GuestPhysAddr, GuestPhysMemorySetTrait, HostPageNum,
     HostPhysAddr, HostVirtAddr,

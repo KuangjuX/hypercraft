@@ -1,4 +1,4 @@
-use crate::HyperResult;
+use crate::{HyperCraftHal, HyperResult};
 
 pub type GuestPhysAddr = usize;
 pub type HostPhysAddr = usize;
@@ -14,7 +14,7 @@ pub trait IntoRvmPageTableFlags: core::fmt::Debug {
     fn is_user(&self) -> bool;
 }
 
-pub trait GuestPageTable {
+pub trait GuestPageTable<H: HyperCraftHal> {
     fn new() -> Self;
     /// Map a guest physical frame starts from `gpa` to the host physical
     /// frame starts from of `hpa` with `flags`.

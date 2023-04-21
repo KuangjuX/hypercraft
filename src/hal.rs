@@ -12,4 +12,6 @@ pub trait HyperCraftHal: Sized {
     /// Deallocates the given 16K-sized physical page.
     #[cfg(target_arch = "riscv64")]
     fn dealloc_16_page(ppn: HostPageNum);
+    /// VM-Exit handler
+    fn vmexit_handler(vcpu: &mut crate::VCpu<Self>);
 }

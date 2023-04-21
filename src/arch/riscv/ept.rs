@@ -1,14 +1,14 @@
-use crate::{ffi::alloc_16_page, GuestPageTable, HostPageNum};
+use crate::{GuestPageTable, HostPageNum, HyperCraftHal};
 
 #[derive(Debug)]
 pub struct GuestPageTableSv39 {
     root_ppn: HostPageNum,
 }
 
-impl GuestPageTable for GuestPageTableSv39 {
+impl<H: HyperCraftHal> GuestPageTable<H> for GuestPageTableSv39 {
     fn new() -> Self {
         Self {
-            root_ppn: alloc_16_page().unwrap(),
+            root_ppn: H::alloc_16_page().unwrap(),
         }
     }
 
