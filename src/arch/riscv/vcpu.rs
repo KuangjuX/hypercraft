@@ -51,4 +51,6 @@ impl VCpu {
         trap_cx.x[2] = sp;
         Self { trap_cx, guest }
     }
+
+    pub fn vcpu_run(&mut self) {}
 }

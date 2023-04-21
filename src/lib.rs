@@ -10,7 +10,7 @@ extern crate alloc;
 #[cfg(target_arch = "riscv64")]
 #[path = "arch/riscv/mod.rs"]
 mod arch;
-mod ffi;
+mod hal;
 mod memory;
 
 pub type HyperResult<T = ()> = Result<T, HyperError>;
