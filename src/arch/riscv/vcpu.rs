@@ -3,13 +3,13 @@ use core::marker::PhantomData;
 use core::mem::size_of;
 use memoffset::offset_of;
 
-use alloc::sync::Arc;
+// use alloc::sync::Arc;
 use riscv::register::{hstatus, htinst, htval, scause, sstatus, stval};
 
 use crate::HyperCraftHal;
 
 use super::regs::{GeneralPurposeRegisters, GprIndex};
-use super::Guest;
+// use super::Guest;
 
 /// Hypervisor GPR and CSR state which must be saved/restored when entering/exiting virtualization.
 #[derive(Default)]
@@ -123,8 +123,9 @@ macro_rules! guest_csr_offset {
 
 pub struct VCpu<H: HyperCraftHal> {
     regs: VmCpuRegisters,
-    pub guest: Arc<Guest>,
+    // pub guest: Arc<Guest>,
     marker: PhantomData<H>,
+    trap_cause: Option<scause::Trap>,
 }
 
 // const hyp_ra: usize = hyp_gpr_offset(GprIndex::RA);
@@ -268,14 +269,7 @@ extern "C" {
 }
 
 impl<H: HyperCraftHal> VCpu<H> {
-    pub fn create(
-        _entry: usize,
-        _sp: usize,
-        _hgatp: usize,
-        _kernel_sp: usize,
-        _trap_handler: usize,
-        guest: Arc<Guest>,
-    ) -> Self {
+    pub fn create(entry: usize) -> Self {
         let mut regs = VmCpuRegisters::default();
         // Set hstatus
         let mut hstatus = hstatus::read();
@@ -286,10 +280,14 @@ impl<H: HyperCraftHal> VCpu<H> {
         let mut sstatus = sstatus::read();
         sstatus.set_spp(sstatus::SPP::Supervisor);
         regs.guest_regs.sstatus = sstatus.bits() as u64;
+
+        // Set entry
+        regs.guest_regs.sepc = entry as u64;
         Self {
             regs,
-            guest,
+            // guest,
             marker: PhantomData,
+            trap_cause: None,
         }
     }
 
@@ -307,8 +305,15 @@ impl<H: HyperCraftHal> VCpu<H> {
             regs.trap_csrs.stval = stval::read() as u64;
             regs.trap_csrs.htval = htval::read() as u64;
             regs.trap_csrs.htinst = htinst::read() as u64;
+
+            self.trap_cause = Some(scause::read().cause());
             // vm exit handler
             H::vmexit_handler(self);
         }
+    }
+
+    #[cfg(target_arch = "riscv64")]
+    pub fn trap_cause(&self) -> Option<scause::Trap> {
+        self.trap_cause
     }
 }
