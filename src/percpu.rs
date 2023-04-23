@@ -1,6 +1,10 @@
 use core::marker::PhantomData;
 
-use crate::{GuestPhysAddr, HyperCraftHal, HyperResult, VCpu};
+use crate::{arch, GuestPhysAddr, HyperCraftHal, HyperResult, VCpu};
+
+pub fn has_hardware_support() -> bool {
+    arch::has_hardware_support()
+}
 
 pub struct HyperCraftPerCpu<H: HyperCraftHal> {
     _cpu_id: usize,
@@ -17,6 +21,10 @@ impl<H: HyperCraftHal> HyperCraftPerCpu<H> {
     }
 
     pub fn create_vcpu(&self, entry: GuestPhysAddr) -> HyperResult<VCpu<H>> {
-        Ok(VCpu::create(entry))
+        if !has_hardware_support() {
+            Err(crate::HyperError::BadState)
+        } else {
+            Ok(VCpu::<H>::create(entry))
+        }
     }
 }
