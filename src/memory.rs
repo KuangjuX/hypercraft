@@ -1,6 +1,7 @@
 use crate::{HyperCraftHal, HyperResult};
 
 pub type GuestPhysAddr = usize;
+pub type GuestVirtAddr = usize;
 pub type HostPhysAddr = usize;
 pub type HostVirtAddr = usize;
 pub type GuestPageNum = usize;

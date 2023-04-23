@@ -17,11 +17,11 @@ mod percpu;
 
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
-pub use arch::{ArchGuestPageTable, GprIndex, Guest, VCpu};
+pub use arch::{ArchGuestPageTable, GprIndex, Guest, VCpu, VmExitInfo};
 pub use hal::HyperCraftHal;
 pub use memory::{
-    GuestPageNum, GuestPageTable, GuestPhysAddr, GuestPhysMemorySetTrait, HostPageNum,
-    HostPhysAddr, HostVirtAddr,
+    GuestPageNum, GuestPageTable, GuestPhysAddr, GuestPhysMemorySetTrait, GuestVirtAddr,
+    HostPageNum, HostPhysAddr, HostVirtAddr,
 };
 pub use percpu::HyperCraftPerCpu;
 
