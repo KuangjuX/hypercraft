@@ -6,7 +6,7 @@ use memoffset::offset_of;
 // use alloc::sync::Arc;
 use riscv::register::{hstatus, htinst, htval, scause, sstatus, stval};
 
-use crate::HyperCraftHal;
+use crate::{GuestPhysAddr, HyperCraftHal};
 
 use super::regs::{GeneralPurposeRegisters, GprIndex};
 // use super::Guest;
@@ -121,6 +121,16 @@ macro_rules! guest_csr_offset {
     };
 }
 
+pub enum VmCpuStatus {
+    /// The vCPU is not powered on.
+    PoweredOff,
+    /// The vCPU is available to be run.
+    Runnable,
+    /// The vCPU has benn claimed exclusively for running on a (physical) CPU.
+    Running,
+}
+
+/// A virtual CPU within a guest
 pub struct VCpu<H: HyperCraftHal> {
     regs: VmCpuRegisters,
     // pub guest: Arc<Guest>,
@@ -202,7 +212,7 @@ extern "C" {
 }
 
 impl<H: HyperCraftHal> VCpu<H> {
-    pub fn create(entry: usize) -> Self {
+    pub fn create(entry: GuestPhysAddr) -> Self {
         let mut regs = VmCpuRegisters::default();
         // Set hstatus
         let mut hstatus = hstatus::read();
@@ -250,14 +260,17 @@ impl<H: HyperCraftHal> VCpu<H> {
         self.trap_cause
     }
 
-    pub fn vcpu_read(&self, index: GprIndex) -> usize {
+    /// Gets one of the vCPU's general purpose registers.
+    pub fn get_gpr(&self, index: GprIndex) -> usize {
         self.regs.guest_regs.gprs.reg(index) as usize
     }
 
-    pub fn vcpu_write(&mut self, index: GprIndex, val: usize) {
+    /// Set one of the vCPU's general purpose register.
+    pub fn set_gpr(&mut self, index: GprIndex, val: usize) {
         self.regs.guest_regs.gprs.set_reg(index, val as u64);
     }
 
+    /// Advance guest pc by `instr_len` bytes
     pub fn advance_pc(&mut self, instr_len: usize) {
         self.regs.guest_regs.sepc += instr_len as u64
     }

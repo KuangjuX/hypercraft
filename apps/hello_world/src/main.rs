@@ -3,7 +3,7 @@
 #![feature(panic_info_message, naked_functions, asm_const, alloc_error_handler)]
 
 use hyp_alloc::{frame_alloc, frame_dealloc, PhysPageNum};
-use hypercraft::{Guest, GuestPhysAddr, HostPhysAddr, HyperCraftHal, VCpu};
+use hypercraft::{Guest, GuestPhysAddr, HostPhysAddr, HyperCraftHal, HyperCraftPerCpu, VCpu};
 use riscv::register::sepc;
 
 use crate::sbi::{console_putchar, SBI_CONSOLE_PUTCHAR};
@@ -102,10 +102,10 @@ impl HyperCraftHal for HyperCraftHalImpl {
         let trap_cause = vcpu.trap_cause().unwrap();
         match trap_cause {
             Trap::Exception(Exception::VirtualSupervisorEnvCall) => {
-                let ext_id = vcpu.vcpu_read(hypercraft::GprIndex::A7);
+                let ext_id = vcpu.get_gpr(hypercraft::GprIndex::A7);
                 match ext_id {
                     SBI_CONSOLE_PUTCHAR => {
-                        console_putchar(vcpu.vcpu_read(hypercraft::GprIndex::A0));
+                        console_putchar(vcpu.get_gpr(hypercraft::GprIndex::A0));
                         vcpu.advance_pc(4);
                     }
                     _ => unimplemented!(),
@@ -135,12 +135,16 @@ fn hentry() -> ! {
     clear_bss();
     hyp_alloc::heap_init();
     println!("Starting virtualization...");
-    println!("setup_guest addr: {:#x}", setup_guest as usize);
-    println!("hello_world addr: {:#x}", hello_world as usize);
-    println!("guest_stack addr: {:#x}", GUEST_STACK.as_ptr() as usize);
+    // println!("setup_guest addr: {:#x}", setup_guest as usize);
+    // println!("hello_world addr: {:#x}", hello_world as usize);
+    // println!("guest_stack addr: {:#x}", GUEST_STACK.as_ptr() as usize);
+    assert_eq!(setup_guest as usize, 0x9000_0000);
+    assert_eq!(hello_world as usize, 0x9000_1000);
+    assert_eq!(GUEST_STACK.as_ptr() as usize, 0x9020_0000);
 
     // create vcpu
-    let mut vcpu = VCpu::<HyperCraftHalImpl>::create(GUEST_START);
+    let percpu = HyperCraftPerCpu::<HyperCraftHalImpl>::new(0);
+    let mut vcpu = percpu.create_vcpu(GUEST_START).unwrap();
 
     // run vcpu
     vcpu.run();

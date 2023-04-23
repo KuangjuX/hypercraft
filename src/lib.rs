@@ -13,6 +13,7 @@ extern crate alloc;
 mod arch;
 mod hal;
 mod memory;
+mod percpu;
 
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
@@ -22,6 +23,7 @@ pub use memory::{
     GuestPageNum, GuestPageTable, GuestPhysAddr, GuestPhysMemorySetTrait, HostPageNum,
     HostPhysAddr, HostVirtAddr,
 };
+pub use percpu::HyperCraftPerCpu;
 
 #[derive(Debug, PartialEq)]
 pub enum HyperError {
