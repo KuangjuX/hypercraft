@@ -19,7 +19,8 @@ extern crate alloc;
 #[link_section = ".guest_text.text"]
 #[no_mangle]
 unsafe extern "C" fn hello_world() {
-    println!("Hello World!")
+    println!("Hello World!");
+    panic!()
 }
 
 #[naked]
@@ -137,24 +138,7 @@ fn hentry() -> ! {
     println!("setup_guest addr: {:#x}", setup_guest as usize);
     println!("hello_world addr: {:#x}", hello_world as usize);
     println!("guest_stack addr: {:#x}", GUEST_STACK.as_ptr() as usize);
-    // Copy BIOS and guest image
-    // unsafe {
-    //     core::ptr::copy(
-    //         setup_guest as usize as *const u8,
-    //         0x9000_0000 as *mut u8,
-    //         0x1000,
-    //     );
 
-    //     core::ptr::copy(
-    //         hello_world as usize as *const u8,
-    //         0x9000_1000 as *mut u8,
-    //         0x1000,
-    //     );
-    // }
-    unsafe {
-        let inst = core::ptr::read(GUEST_START as *const usize);
-        println!("inst: {:#x}", inst);
-    }
     // create vcpu
     let mut vcpu = VCpu::<HyperCraftHalImpl>::create(GUEST_START);
 
