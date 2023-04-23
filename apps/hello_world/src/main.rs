@@ -4,6 +4,9 @@
 
 use hyp_alloc::{frame_alloc, frame_dealloc, PhysPageNum};
 use hypercraft::{Guest, GuestPhysAddr, HostPhysAddr, HyperCraftHal, VCpu};
+use riscv::register::sepc;
+
+use crate::sbi::{console_putchar, SBI_CONSOLE_PUTCHAR};
 
 #[macro_use]
 mod console;
@@ -13,11 +16,15 @@ mod sbi;
 
 extern crate alloc;
 
+#[link_section = ".guest_text.text"]
+#[no_mangle]
 unsafe extern "C" fn hello_world() {
     println!("Hello World!")
 }
 
 #[naked]
+#[link_section = ".guest_text.entry"]
+#[no_mangle]
 unsafe extern "C" fn setup_guest() {
     core::arch::asm!(
         // prepare stack
@@ -26,11 +33,11 @@ unsafe extern "C" fn setup_guest() {
         "addi t3, a0, 1",
         "mul t2, t2, t3",
         "add sp, sp, t2",
-        "li t1, {guest_main}",
+        "la t1, {guest_main}",
         "jr t1",
         boot_stack = sym GUEST_STACK,
         boot_stack_size = const BOOT_STACK_SIZE,
-        guest_main = const 0x9000_1000_usize,
+        guest_main = sym hello_world,
         options(noreturn)
     )
 }
@@ -91,11 +98,21 @@ impl HyperCraftHal for HyperCraftHalImpl {
 
     fn vmexit_handler(vcpu: &mut hypercraft::VCpu<Self>) {
         use riscv::register::scause::*;
-        match vcpu.trap_cause() {
-            Some(Trap::Exception(Exception::VirtualSupervisorEnvCall)) => {
-                panic!()
+        let trap_cause = vcpu.trap_cause().unwrap();
+        match trap_cause {
+            Trap::Exception(Exception::VirtualSupervisorEnvCall) => {
+                let ext_id = vcpu.vcpu_read(hypercraft::GprIndex::A7);
+                match ext_id {
+                    SBI_CONSOLE_PUTCHAR => {
+                        console_putchar(vcpu.vcpu_read(hypercraft::GprIndex::A0));
+                        vcpu.advance_pc(4);
+                    }
+                    _ => unimplemented!(),
+                }
             }
-            _ => panic!(),
+            _ => {
+                panic!("sepc: {:#x}, cause: {:?}", sepc::read(), trap_cause);
+            }
         }
     }
 }
@@ -117,22 +134,29 @@ fn hentry() -> ! {
     clear_bss();
     hyp_alloc::heap_init();
     println!("Starting virtualization...");
+    println!("setup_guest addr: {:#x}", setup_guest as usize);
+    println!("hello_world addr: {:#x}", hello_world as usize);
+    println!("guest_stack addr: {:#x}", GUEST_STACK.as_ptr() as usize);
     // Copy BIOS and guest image
-    unsafe {
-        core::ptr::copy(
-            setup_guest as usize as *const u8,
-            0x9000_0000 as *mut u8,
-            0x1000,
-        );
+    // unsafe {
+    //     core::ptr::copy(
+    //         setup_guest as usize as *const u8,
+    //         0x9000_0000 as *mut u8,
+    //         0x1000,
+    //     );
 
-        core::ptr::copy(
-            hello_world as usize as *const u8,
-            0x9000_1000 as *mut u8,
-            0x1000,
-        );
+    //     core::ptr::copy(
+    //         hello_world as usize as *const u8,
+    //         0x9000_1000 as *mut u8,
+    //         0x1000,
+    //     );
+    // }
+    unsafe {
+        let inst = core::ptr::read(GUEST_START as *const usize);
+        println!("inst: {:#x}", inst);
     }
     // create vcpu
-    let mut vcpu = VCpu::<HyperCraftHalImpl>::create(0x9000_0000);
+    let mut vcpu = VCpu::<HyperCraftHalImpl>::create(GUEST_START);
 
     // run vcpu
     vcpu.run();

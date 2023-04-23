@@ -16,7 +16,7 @@ mod memory;
 
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
-pub use arch::{ArchGuestPageTable, Guest, VCpu};
+pub use arch::{ArchGuestPageTable, GprIndex, Guest, VCpu};
 pub use hal::HyperCraftHal;
 pub use memory::{
     GuestPageNum, GuestPageTable, GuestPhysAddr, GuestPhysMemorySetTrait, HostPageNum,

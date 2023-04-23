@@ -128,73 +128,6 @@ pub struct VCpu<H: HyperCraftHal> {
     trap_cause: Option<scause::Trap>,
 }
 
-// const hyp_ra: usize = hyp_gpr_offset(GprIndex::RA);
-// const hyp_gp: usize = hyp_gpr_offset(GprIndex::GP);
-// const hyp_tp: usize = hyp_gpr_offset(GprIndex::TP);
-// const hyp_s0: usize = hyp_gpr_offset(GprIndex::S0);
-// const hyp_s1: usize = hyp_gpr_offset(GprIndex::S1);
-// const hyp_a1: usize = hyp_gpr_offset(GprIndex::A1);
-// const hyp_a2: usize = hyp_gpr_offset(GprIndex::A2);
-// const hyp_a3: usize = hyp_gpr_offset(GprIndex::A3);
-// const hyp_a4: usize = hyp_gpr_offset(GprIndex::A4);
-// const hyp_a5: usize = hyp_gpr_offset(GprIndex::A5);
-// const hyp_a6: usize = hyp_gpr_offset(GprIndex::A6);
-// const hyp_a7: usize = hyp_gpr_offset(GprIndex::A7);
-// const hyp_s2: usize = hyp_gpr_offset(GprIndex::S2);
-// const hyp_s3: usize = hyp_gpr_offset(GprIndex::S3);
-// const hyp_s4: usize = hyp_gpr_offset(GprIndex::S4);
-// const hyp_s5: usize = hyp_gpr_offset(GprIndex::S5);
-// const hyp_s6: usize = hyp_gpr_offset(GprIndex::S6);
-// const hyp_s7: usize = hyp_gpr_offset(GprIndex::S7);
-// const hyp_s8: usize = hyp_gpr_offset(GprIndex::S8);
-// const hyp_s9: usize = hyp_gpr_offset(GprIndex::S9);
-// const hyp_s10: usize = hyp_gpr_offset(GprIndex::S10);
-// const hyp_s11: usize = hyp_gpr_offset(GprIndex::S11);
-// const hyp_sp: usize = hyp_gpr_offset(GprIndex::SP);
-
-// const hyp_sstatus: usize = hyp_csr_offset!(sstatus);
-// const hyp_hstatus: usize = hyp_csr_offset!(hstatus);
-// const hyp_scounteren: usize = hyp_csr_offset!(scounteren);
-// const hyp_stvec: usize = hyp_csr_offset!(stvec);
-// const hyp_sscratch: usize = hyp_csr_offset!(sscratch);
-
-// const guest_ra: usize = guest_gpr_offset(GprIndex::RA);
-// const guest_gp: usize = guest_gpr_offset(GprIndex::GP);
-// const guest_tp: usize = guest_gpr_offset(GprIndex::TP);
-// const guest_s0: usize = guest_gpr_offset(GprIndex::S0);
-// const guest_s1: usize = guest_gpr_offset(GprIndex::S1);
-// const guest_a0: usize = guest_gpr_offset(GprIndex::A0);
-// const guest_a1: usize = guest_gpr_offset(GprIndex::A1);
-// const guest_a2: usize = guest_gpr_offset(GprIndex::A2);
-// const guest_a3: usize = guest_gpr_offset(GprIndex::A3);
-// const guest_a4: usize = guest_gpr_offset(GprIndex::A4);
-// const guest_a5: usize = guest_gpr_offset(GprIndex::A5);
-// const guest_a6: usize = guest_gpr_offset(GprIndex::A6);
-// const guest_a7: usize = guest_gpr_offset(GprIndex::A7);
-// const guest_s2: usize = guest_gpr_offset(GprIndex::S2);
-// const guest_s3: usize = guest_gpr_offset(GprIndex::S3);
-// const guest_s4: usize = guest_gpr_offset(GprIndex::S4);
-// const guest_s5: usize = guest_gpr_offset(GprIndex::S5);
-// const guest_s6: usize = guest_gpr_offset(GprIndex::S6);
-// const guest_s7: usize = guest_gpr_offset(GprIndex::S7);
-// const guest_s8: usize = guest_gpr_offset(GprIndex::S8);
-// const guest_s9: usize = guest_gpr_offset(GprIndex::S9);
-// const guest_s10: usize = guest_gpr_offset(GprIndex::S10);
-// const guest_s11: usize = guest_gpr_offset(GprIndex::S11);
-// const guest_t0: usize = guest_gpr_offset(GprIndex::T0);
-// const guest_t1: usize = guest_gpr_offset(GprIndex::T1);
-// const guest_t2: usize = guest_gpr_offset(GprIndex::T2);
-// const guest_t3: usize = guest_gpr_offset(GprIndex::T3);
-// const guest_t4: usize = guest_gpr_offset(GprIndex::T4);
-// const guest_t5: usize = guest_gpr_offset(GprIndex::T5);
-// const guest_t6: usize = guest_gpr_offset(GprIndex::T6);
-// const guest_sp: usize = guest_gpr_offset(GprIndex::SP);
-
-// const guest_sstatus: usize = guest_csr_offset!(sstatus);
-// const guest_hstatus: usize = guest_csr_offset!(hstatus);
-// const guest_scounteren: usize = guest_csr_offset!(scounteren);
-// const guest_sepc: usize = guest_csr_offset!(sepc);
-
 global_asm!(
     include_str!("guest.S"),
     hyp_ra = const hyp_gpr_offset(GprIndex::RA),
@@ -315,5 +248,17 @@ impl<H: HyperCraftHal> VCpu<H> {
     #[cfg(target_arch = "riscv64")]
     pub fn trap_cause(&self) -> Option<scause::Trap> {
         self.trap_cause
+    }
+
+    pub fn vcpu_read(&self, index: GprIndex) -> usize {
+        self.regs.guest_regs.gprs.reg(index) as usize
+    }
+
+    pub fn vcpu_write(&mut self, index: GprIndex, val: usize) {
+        self.regs.guest_regs.gprs.set_reg(index, val as u64);
+    }
+
+    pub fn advance_pc(&mut self, instr_len: usize) {
+        self.regs.guest_regs.sepc += instr_len as u64
     }
 }

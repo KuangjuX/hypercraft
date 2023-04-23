@@ -20,8 +20,11 @@ QEMUOPTS	= --machine virt -m 3G -bios $(BOOTLOADER) -nographic
 QEMUOPTS	+=-device loader,file=$(APP_BIN),addr=$(APP_ENTRY_PA)
 
 $(APP_BIN):
-	cargo build --manifest-path=apps/$(APP)/Cargo.toml
+	cargo rustc --manifest-path=apps/$(APP)/Cargo.toml -- -C link-arg=-Tapps/$(APP)/src/linker.ld -C force-frame-pointers=yes
 	$(OBJCOPY) $(APP_ELF) --strip-all -O binary $@
 
 qemu: $(APP_BIN)
 	$(QEMU) $(QEMUOPTS)
+
+clean:
+	rm $(APP_BIN) $(APP_ELF)

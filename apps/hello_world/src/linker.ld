@@ -47,7 +47,14 @@ SECTIONS
     ebss = .;
     ekernel = .;
 
-
+    . = 0x90000000;
+    .guest_text : {
+        *(.guest_text.entry)
+        . = ALIGN(4K);
+        *(.guest_text .guest_text.*)
+    }
     . = 0x90200000;
-    gstack = .;
+    .gstack : {
+        *(.gstack)
+    }
 }
