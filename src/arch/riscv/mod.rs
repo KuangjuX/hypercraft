@@ -3,6 +3,7 @@ mod ept;
 mod guest;
 mod regs;
 mod sbi;
+mod smp;
 mod vcpu;
 mod vm;
 mod vmexit;
