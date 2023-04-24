@@ -24,7 +24,7 @@ impl<H: HyperCraftHal> HyperCraftPerCpu<H> {
         if !has_hardware_support() {
             Err(crate::HyperError::BadState)
         } else {
-            Ok(VCpu::<H>::create(entry))
+            Ok(VCpu::<H>::create(entry, self._cpu_id))
         }
     }
 }

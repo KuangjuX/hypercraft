@@ -5,11 +5,17 @@ use memoffset::offset_of;
 
 // use alloc::sync::Arc;
 use riscv::register::{hstatus, htinst, htval, scause, sstatus, stval};
+use spin::Once;
 
-use crate::{GuestPhysAddr, HyperCraftHal};
+use crate::{GuestPhysAddr, HyperCraftHal, HyperError, HyperResult};
 
 use super::regs::{GeneralPurposeRegisters, GprIndex};
 // use super::Guest;
+
+/// The maximum number of CPUs we can support.
+pub const MAX_CPUS: usize = 8;
+
+pub const VM_CPUS_MAX: usize = MAX_CPUS;
 
 /// Hypervisor GPR and CSR state which must be saved/restored when entering/exiting virtualization.
 #[derive(Default)]
@@ -121,23 +127,6 @@ macro_rules! guest_csr_offset {
     };
 }
 
-pub enum VmCpuStatus {
-    /// The vCPU is not powered on.
-    PoweredOff,
-    /// The vCPU is available to be run.
-    Runnable,
-    /// The vCPU has benn claimed exclusively for running on a (physical) CPU.
-    Running,
-}
-
-/// A virtual CPU within a guest
-pub struct VCpu<H: HyperCraftHal> {
-    regs: VmCpuRegisters,
-    // pub guest: Arc<Guest>,
-    marker: PhantomData<H>,
-    trap_cause: Option<scause::Trap>,
-}
-
 global_asm!(
     include_str!("guest.S"),
     hyp_ra = const hyp_gpr_offset(GprIndex::RA),
@@ -211,8 +200,47 @@ extern "C" {
     fn _run_guest(state: *mut VmCpuRegisters);
 }
 
+pub enum VmCpuStatus {
+    /// The vCPU is not powered on.
+    PoweredOff,
+    /// The vCPU is available to be run.
+    Runnable,
+    /// The vCPU has benn claimed exclusively for running on a (physical) CPU.
+    Running,
+}
+
+/// A virtual CPU within a guest
+pub struct VCpu<H: HyperCraftHal> {
+    vcpu_id: usize,
+    regs: VmCpuRegisters,
+    // pub guest: Arc<Guest>,
+    marker: PhantomData<H>,
+    trap_cause: Option<scause::Trap>,
+}
+
+pub struct VmCpus<H: HyperCraftHal> {
+    inner: [Once<VCpu<H>>; VM_CPUS_MAX],
+}
+
+impl<H: HyperCraftHal> VmCpus<H> {
+    pub fn new() -> Self {
+        Self {
+            inner: [(); VM_CPUS_MAX].map(|_| Once::new()),
+        }
+    }
+
+    /// Adds the given vCPU to the set of vCPUs.
+    pub fn add_vcpu(&self, vcpu: VCpu<H>) -> HyperResult<()> {
+        let vcpu_id = vcpu.vcpu_id();
+        let once_entry = self.inner.get(vcpu_id).ok_or(HyperError::BadState)?;
+
+        once_entry.call_once(|| vcpu);
+        Ok(())
+    }
+}
+
 impl<H: HyperCraftHal> VCpu<H> {
-    pub fn create(entry: GuestPhysAddr) -> Self {
+    pub fn create(entry: GuestPhysAddr, vcpu_id: usize) -> Self {
         let mut regs = VmCpuRegisters::default();
         // Set hstatus
         let mut hstatus = hstatus::read();
@@ -227,6 +255,7 @@ impl<H: HyperCraftHal> VCpu<H> {
         // Set entry
         regs.guest_regs.sepc = entry as u64;
         Self {
+            vcpu_id,
             regs,
             // guest,
             marker: PhantomData,
@@ -273,5 +302,9 @@ impl<H: HyperCraftHal> VCpu<H> {
     /// Advance guest pc by `instr_len` bytes
     pub fn advance_pc(&mut self, instr_len: usize) {
         self.regs.guest_regs.sepc += instr_len as u64
+    }
+
+    pub fn vcpu_id(&self) -> usize {
+        self.vcpu_id
     }
 }
