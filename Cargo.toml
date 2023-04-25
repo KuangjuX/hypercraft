@@ -14,6 +14,7 @@ members = [
 log = "0.4.17"
 memoffset = { version = ">=0.6.5", features = ["unstable_const"] }
 arrayvec = { version = "0.7.2", default-features = false }
+sbi-spec = { version = "0.0.6", features = ["legacy"] }
 spin = "0.9.8"
 
 [target.'cfg(target_arch = "riscv64")'.dependencies]

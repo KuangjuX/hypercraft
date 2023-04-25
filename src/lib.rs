@@ -5,8 +5,8 @@
 
 extern crate alloc;
 
-// #[macro_use]
-// extern crate log;
+#[macro_use]
+extern crate log;
 
 #[cfg(target_arch = "riscv64")]
 #[path = "arch/riscv/mod.rs"]
@@ -14,16 +14,18 @@ mod arch;
 mod hal;
 mod memory;
 mod percpu;
+mod vcpus;
 
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
-pub use arch::{ArchGuestPageTable, GprIndex, Guest, VCpu, VmExitInfo};
+pub use arch::{ArchGuestPageTable, GprIndex, Guest, HyperCallMsg, VCpu, VmExitInfo, VM};
 pub use hal::HyperCraftHal;
 pub use memory::{
     GuestPageNum, GuestPageTable, GuestPhysAddr, GuestPhysMemorySetTrait, GuestVirtAddr,
     HostPageNum, HostPhysAddr, HostVirtAddr,
 };
 pub use percpu::HyperCraftPerCpu;
+pub use vcpus::VmCpus;
 
 #[derive(Debug, PartialEq)]
 pub enum HyperError {

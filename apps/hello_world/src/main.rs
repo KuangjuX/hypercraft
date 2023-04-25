@@ -3,7 +3,10 @@
 #![feature(panic_info_message, naked_functions, asm_const, alloc_error_handler)]
 
 use hyp_alloc::{frame_alloc, frame_dealloc, PhysPageNum};
-use hypercraft::{Guest, GuestPhysAddr, HostPhysAddr, HyperCraftHal, HyperCraftPerCpu, VCpu};
+use hypercraft::{
+    Guest, GuestPhysAddr, HostPhysAddr, HyperCraftHal, HyperCraftPerCpu, VCpu, VmCpus, VmExitInfo,
+    VM,
+};
 use riscv::register::sepc;
 
 use crate::sbi::{console_putchar, SBI_CONSOLE_PUTCHAR};
@@ -97,23 +100,20 @@ impl HyperCraftHal for HyperCraftHalImpl {
 
     fn dealloc_16_page(ppn: hypercraft::HostPageNum) {}
 
-    fn vmexit_handler(vcpu: &mut hypercraft::VCpu<Self>) {
-        use riscv::register::scause::*;
-        let trap_cause = vcpu.trap_cause().unwrap();
-        match trap_cause {
-            Trap::Exception(Exception::VirtualSupervisorEnvCall) => {
-                let ext_id = vcpu.get_gpr(hypercraft::GprIndex::A7);
-                match ext_id {
-                    SBI_CONSOLE_PUTCHAR => {
-                        console_putchar(vcpu.get_gpr(hypercraft::GprIndex::A0));
-                        vcpu.advance_pc(4);
+    fn vmexit_handler(vcpu: &mut hypercraft::VCpu<Self>, vm_exit_info: VmExitInfo) {
+        match vm_exit_info {
+            VmExitInfo::Ecall(sbi_msg) => {
+                if let Some(sbi_msg) = sbi_msg {
+                    match sbi_msg {
+                        hypercraft::HyperCallMsg::PutChar(c) => {
+                            console_putchar(c);
+                            vcpu.advance_pc(4);
+                        }
+                        _ => todo!(),
                     }
-                    _ => unimplemented!(),
                 }
             }
-            _ => {
-                panic!("sepc: {:#x}, cause: {:?}", sepc::read(), trap_cause);
-            }
+            _ => todo!(),
         }
     }
 }
@@ -145,9 +145,12 @@ fn hentry() -> ! {
     // create vcpu
     let percpu = HyperCraftPerCpu::<HyperCraftHalImpl>::new(0);
     let mut vcpu = percpu.create_vcpu(GUEST_START).unwrap();
+    let mut vcpus = VmCpus::new();
+    vcpus.add_vcpu(vcpu);
+    let mut vm = VM::new(vcpus).unwrap();
 
-    // run vcpu
-    vcpu.run();
+    // vm run
+    vm.run(0);
 
     unreachable!();
 }

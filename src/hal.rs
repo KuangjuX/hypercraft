@@ -1,4 +1,4 @@
-use crate::{HostPageNum, HostPhysAddr};
+use crate::{HostPageNum, HostPhysAddr, VmExitInfo};
 
 /// The interfaces which the underlginh software(kernel or hypervisor) must implement.
 pub trait HyperCraftHal: Sized {
@@ -13,5 +13,5 @@ pub trait HyperCraftHal: Sized {
     #[cfg(target_arch = "riscv64")]
     fn dealloc_16_page(ppn: HostPageNum);
     /// VM-Exit handler
-    fn vmexit_handler(vcpu: &mut crate::VCpu<Self>);
+    fn vmexit_handler(vcpu: &mut crate::VCpu<Self>, vm_exit_info: VmExitInfo);
 }

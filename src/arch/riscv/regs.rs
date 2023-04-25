@@ -1,6 +1,6 @@
 #[derive(Default)]
 #[repr(C)]
-pub struct GeneralPurposeRegisters([u64; 32]);
+pub struct GeneralPurposeRegisters([usize; 32]);
 
 /// Index of risc-v general purpose registers in `GeneralPurposeRegisters`.
 #[repr(u32)]
@@ -86,12 +86,12 @@ impl GprIndex {
 
 impl GeneralPurposeRegisters {
     /// Returns the value of the given register.
-    pub fn reg(&self, reg_index: GprIndex) -> u64 {
+    pub fn reg(&self, reg_index: GprIndex) -> usize {
         self.0[reg_index as usize]
     }
 
     /// Sets the value of the given register.
-    pub fn set_reg(&mut self, reg_index: GprIndex, val: u64) {
+    pub fn set_reg(&mut self, reg_index: GprIndex, val: usize) {
         if reg_index == GprIndex::Zero {
             return;
         }
@@ -101,12 +101,12 @@ impl GeneralPurposeRegisters {
 
     /// Returns the argument registers.
     /// This is avoids many calls when an SBI handler needs all of the argmuent regs.
-    pub fn a_regs(&self) -> &[u64] {
+    pub fn a_regs(&self) -> &[usize] {
         &self.0[GprIndex::A0 as usize..=GprIndex::A7 as usize]
     }
 
     /// Returns the arguments register as a mutable.
-    pub fn a_regs_mut(&mut self) -> &mut [u64] {
+    pub fn a_regs_mut(&mut self) -> &mut [usize] {
         &mut self.0[GprIndex::A0 as usize..=GprIndex::A7 as usize]
     }
 }

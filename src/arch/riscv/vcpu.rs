@@ -5,28 +5,22 @@ use memoffset::offset_of;
 
 // use alloc::sync::Arc;
 use riscv::register::{hstatus, htinst, htval, scause, sstatus, stval};
-use spin::Once;
 
-use crate::{GuestPhysAddr, HyperCraftHal, HyperError, HyperResult};
+use crate::{arch::sbi::SbiMessage, GuestPhysAddr, HyperCraftHal, VmExitInfo};
 
 use super::regs::{GeneralPurposeRegisters, GprIndex};
 // use super::Guest;
-
-/// The maximum number of CPUs we can support.
-pub const MAX_CPUS: usize = 8;
-
-pub const VM_CPUS_MAX: usize = MAX_CPUS;
 
 /// Hypervisor GPR and CSR state which must be saved/restored when entering/exiting virtualization.
 #[derive(Default)]
 #[repr(C)]
 struct HypervisorCpuState {
     gprs: GeneralPurposeRegisters,
-    sstatus: u64,
-    hstatus: u64,
-    scounteren: u64,
-    stvec: u64,
-    sscratch: u64,
+    sstatus: usize,
+    hstatus: usize,
+    scounteren: usize,
+    stvec: usize,
+    sscratch: usize,
 }
 
 /// Guest GPR and CSR state which must be saved/restored when exiting/entering virtualization.
@@ -34,10 +28,10 @@ struct HypervisorCpuState {
 #[repr(C)]
 struct GuestCpuState {
     gprs: GeneralPurposeRegisters,
-    sstatus: u64,
-    hstatus: u64,
-    scounteren: u64,
-    sepc: u64,
+    sstatus: usize,
+    hstatus: usize,
+    scounteren: usize,
+    sepc: usize,
 }
 
 /// The CSRs that are only in effect when virtualization is enabled (V=1) and must be saved and
@@ -45,16 +39,16 @@ struct GuestCpuState {
 #[derive(Default)]
 #[repr(C)]
 pub struct GuestVsCsrs {
-    htimedelta: u64,
-    vsstatus: u64,
-    vsie: u64,
-    vstvec: u64,
-    vsscratch: u64,
-    vsepc: u64,
-    vscause: u64,
-    vstval: u64,
-    vsatp: u64,
-    vstimecmp: u64,
+    htimedelta: usize,
+    vsstatus: usize,
+    vsie: usize,
+    vstvec: usize,
+    vsscratch: usize,
+    vsepc: usize,
+    vscause: usize,
+    vstval: usize,
+    vsatp: usize,
+    vstimecmp: usize,
 }
 
 /// Virtualized HS-level CSRs that are used to emulate (part of) the hypervisor extension for the
@@ -62,9 +56,9 @@ pub struct GuestVsCsrs {
 #[derive(Default)]
 #[repr(C)]
 pub struct GuestVirtualHsCsrs {
-    hie: u64,
-    hgeie: u64,
-    hgatp: u64,
+    hie: usize,
+    hgeie: usize,
+    hgatp: usize,
 }
 
 /// CSRs written on an exit from virtualization that are used by the hypervisor to determine the cause
@@ -72,10 +66,10 @@ pub struct GuestVirtualHsCsrs {
 #[derive(Default, Clone)]
 #[repr(C)]
 pub struct VmCpuTrapState {
-    pub scause: u64,
-    pub stval: u64,
-    pub htval: u64,
-    pub htinst: u64,
+    pub scause: usize,
+    pub stval: usize,
+    pub htval: usize,
+    pub htinst: usize,
 }
 
 /// (v)CPU register state that must be saved or restored when entering/exiting a VM or switching
@@ -209,34 +203,13 @@ pub enum VmCpuStatus {
     Running,
 }
 
+#[derive(Default)]
 /// A virtual CPU within a guest
 pub struct VCpu<H: HyperCraftHal> {
     vcpu_id: usize,
     regs: VmCpuRegisters,
     // pub guest: Arc<Guest>,
     marker: PhantomData<H>,
-    trap_cause: Option<scause::Trap>,
-}
-
-pub struct VmCpus<H: HyperCraftHal> {
-    inner: [Once<VCpu<H>>; VM_CPUS_MAX],
-}
-
-impl<H: HyperCraftHal> VmCpus<H> {
-    pub fn new() -> Self {
-        Self {
-            inner: [(); VM_CPUS_MAX].map(|_| Once::new()),
-        }
-    }
-
-    /// Adds the given vCPU to the set of vCPUs.
-    pub fn add_vcpu(&self, vcpu: VCpu<H>) -> HyperResult<()> {
-        let vcpu_id = vcpu.vcpu_id();
-        let once_entry = self.inner.get(vcpu_id).ok_or(HyperError::BadState)?;
-
-        once_entry.call_once(|| vcpu);
-        Ok(())
-    }
 }
 
 impl<H: HyperCraftHal> VCpu<H> {
@@ -245,63 +218,62 @@ impl<H: HyperCraftHal> VCpu<H> {
         // Set hstatus
         let mut hstatus = hstatus::read();
         hstatus.set_spv(true);
-        regs.guest_regs.hstatus = hstatus.bits() as u64;
+        regs.guest_regs.hstatus = hstatus.bits();
 
         // Set sstatus
         let mut sstatus = sstatus::read();
         sstatus.set_spp(sstatus::SPP::Supervisor);
-        regs.guest_regs.sstatus = sstatus.bits() as u64;
+        regs.guest_regs.sstatus = sstatus.bits();
 
         // Set entry
-        regs.guest_regs.sepc = entry as u64;
+        regs.guest_regs.sepc = entry;
         Self {
             vcpu_id,
             regs,
             // guest,
             marker: PhantomData,
-            trap_cause: None,
         }
     }
 
     /// Runs this vCPU until traps.
-    pub fn run(&mut self) {
-        loop {
-            let regs = &mut self.regs;
-            unsafe {
-                // Safe to run the guest as it only touches memory assigned to it by being owned
-                // by its page table
-                _run_guest(regs);
-            }
-            // Save off the trap information
-            regs.trap_csrs.scause = scause::read().bits() as u64;
-            regs.trap_csrs.stval = stval::read() as u64;
-            regs.trap_csrs.htval = htval::read() as u64;
-            regs.trap_csrs.htinst = htinst::read() as u64;
-
-            self.trap_cause = Some(scause::read().cause());
-            // vm exit handler
-            H::vmexit_handler(self);
+    pub fn run(&mut self) -> VmExitInfo {
+        trace!("Run vcpu");
+        let regs = &mut self.regs;
+        unsafe {
+            // Safe to run the guest as it only touches memory assigned to it by being owned
+            // by its page table
+            _run_guest(regs);
         }
-    }
+        // Save off the trap information
+        regs.trap_csrs.scause = scause::read().bits();
+        regs.trap_csrs.stval = stval::read();
+        regs.trap_csrs.htval = htval::read();
+        regs.trap_csrs.htinst = htinst::read();
 
-    #[cfg(target_arch = "riscv64")]
-    pub fn trap_cause(&self) -> Option<scause::Trap> {
-        self.trap_cause
+        let scause = scause::read();
+        use scause::{Exception, Trap};
+        match scause.cause() {
+            Trap::Exception(Exception::VirtualSupervisorEnvCall) => {
+                let sbi_msg = SbiMessage::from_regs(regs.guest_regs.gprs.a_regs()).ok();
+                VmExitInfo::Ecall(sbi_msg)
+            }
+            _ => unimplemented!(),
+        }
     }
 
     /// Gets one of the vCPU's general purpose registers.
     pub fn get_gpr(&self, index: GprIndex) -> usize {
-        self.regs.guest_regs.gprs.reg(index) as usize
+        self.regs.guest_regs.gprs.reg(index)
     }
 
     /// Set one of the vCPU's general purpose register.
     pub fn set_gpr(&mut self, index: GprIndex, val: usize) {
-        self.regs.guest_regs.gprs.set_reg(index, val as u64);
+        self.regs.guest_regs.gprs.set_reg(index, val);
     }
 
     /// Advance guest pc by `instr_len` bytes
     pub fn advance_pc(&mut self, instr_len: usize) {
-        self.regs.guest_regs.sepc += instr_len as u64
+        self.regs.guest_regs.sepc += instr_len
     }
 
     pub fn vcpu_id(&self) -> usize {
