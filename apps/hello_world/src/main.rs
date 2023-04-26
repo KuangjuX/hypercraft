@@ -8,11 +8,18 @@ use hypercraft::{
     VM,
 };
 use riscv::register::sepc;
+use sbi::shutdown;
+use sbi_rt::system_reset;
 
 use crate::sbi::{console_putchar, SBI_CONSOLE_PUTCHAR};
 
 #[macro_use]
+extern crate log;
+
+#[macro_use]
 mod console;
+#[macro_use]
+mod logging;
 mod hyp_alloc;
 mod lang_items;
 mod sbi;
@@ -109,8 +116,11 @@ impl HyperCraftHal for HyperCraftHalImpl {
                             console_putchar(c);
                             vcpu.advance_pc(4);
                         }
+                        hypercraft::HyperCallMsg::Reset(reset) => shutdown(),
                         _ => todo!(),
                     }
+                } else {
+                    panic!()
                 }
             }
             _ => todo!(),
@@ -134,6 +144,7 @@ fn clear_bss() {
 fn hentry() -> ! {
     clear_bss();
     hyp_alloc::heap_init();
+    logging::init();
     println!("Starting virtualization...");
     // println!("setup_guest addr: {:#x}", setup_guest as usize);
     // println!("hello_world addr: {:#x}", hello_world as usize);
@@ -146,6 +157,7 @@ fn hentry() -> ! {
     let percpu = HyperCraftPerCpu::<HyperCraftHalImpl>::new(0);
     let mut vcpu = percpu.create_vcpu(GUEST_START).unwrap();
     let mut vcpus = VmCpus::new();
+    // add vcpu into vm
     vcpus.add_vcpu(vcpu);
     let mut vm = VM::new(vcpus).unwrap();
 

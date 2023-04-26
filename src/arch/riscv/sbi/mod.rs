@@ -1,5 +1,10 @@
+mod dbcn;
+mod srst;
+
 use crate::{HyperError, HyperResult};
-use sbi_spec::legacy;
+use dbcn::DebugConsoleFunction;
+use sbi_spec;
+use srst::ResetFunction;
 
 /// SBI Message used to invoke the specfified SBI extension in the firmware.
 #[derive(Clone, Copy, Debug)]
@@ -8,6 +13,8 @@ pub enum SbiMessage {
     PutChar(usize),
     /// Handles output to the console for debug
     DebugConsole(DebugConsoleFunction),
+    /// Handles system reset
+    Reset(ResetFunction),
 }
 
 impl SbiMessage {
@@ -16,20 +23,9 @@ impl SbiMessage {
     /// extension and the other A* registers will be interpreted based on the extension A7 selects.
     pub fn from_regs(args: &[usize]) -> HyperResult<Self> {
         match args[7] {
-            legacy::LEGACY_CONSOLE_PUTCHAR => Ok(SbiMessage::PutChar(args[0])),
+            sbi_spec::legacy::LEGACY_CONSOLE_PUTCHAR => Ok(SbiMessage::PutChar(args[0])),
+            sbi_spec::srst::EID_SRST => ResetFunction::from_regs(args).map(SbiMessage::Reset),
             _ => Err(HyperError::NotFound),
         }
     }
-}
-
-/// Functions for the Debug Console extension
-#[derive(Copy, Clone, Debug)]
-pub enum DebugConsoleFunction {
-    /// Prints the given string to the system console.
-    PutString {
-        /// The length of the string to print.
-        len: u64,
-        /// The address of the string.
-        addr: u64,
-    },
 }

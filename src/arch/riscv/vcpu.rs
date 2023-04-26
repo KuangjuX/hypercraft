@@ -237,7 +237,6 @@ impl<H: HyperCraftHal> VCpu<H> {
 
     /// Runs this vCPU until traps.
     pub fn run(&mut self) -> VmExitInfo {
-        trace!("Run vcpu");
         let regs = &mut self.regs;
         unsafe {
             // Safe to run the guest as it only touches memory assigned to it by being owned

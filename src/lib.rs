@@ -1,5 +1,11 @@
 #![no_std]
-#![allow(clippy::upper_case_acronyms, dead_code, non_upper_case_globals)]
+#![allow(
+    clippy::upper_case_acronyms,
+    clippy::single_component_path_imports,
+    dead_code,
+    non_upper_case_globals,
+    unused_imports
+)]
 #![deny(warnings)]
 #![feature(naked_functions, asm_const)]
 
