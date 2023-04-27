@@ -1,3 +1,4 @@
+//! reference: https://github1s.com/rivosinc/salus/blob/main/src/smp.rs
 use spin::Once;
 
 use crate::{
