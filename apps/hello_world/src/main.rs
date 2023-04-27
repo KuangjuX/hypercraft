@@ -141,11 +141,11 @@ fn clear_bss() {
 }
 
 #[no_mangle]
-fn hentry() -> ! {
+fn hentry(hart_id: usize) -> ! {
     clear_bss();
     hyp_alloc::heap_init();
     logging::init();
-    println!("Starting virtualization...");
+    println!("Booting on CPU{} (hart {})", hart_id, hart_id);
     // println!("setup_guest addr: {:#x}", setup_guest as usize);
     // println!("hello_world addr: {:#x}", hello_world as usize);
     // println!("guest_stack addr: {:#x}", GUEST_STACK.as_ptr() as usize);
