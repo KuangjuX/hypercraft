@@ -12,6 +12,10 @@ pub trait HyperCraftHal: Sized {
     /// Deallocates the given 16K-sized physical page.
     #[cfg(target_arch = "riscv64")]
     fn dealloc_16_page(ppn: HostPageNum);
+    /// Allocates contiguous pages, returns its physical address.
+    fn alloc_pages(num_pages: usize) -> Option<HostPhysAddr>;
+    /// Gives back the allocated pages starts from `pa` to the page allocator.
+    fn dealloc_pages(pa: HostPhysAddr, num_pages: usize);
     /// VM-Exit handler
     fn vmexit_handler(vcpu: &mut crate::VCpu<Self>, vm_exit_info: VmExitInfo);
 }

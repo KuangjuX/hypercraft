@@ -7,6 +7,8 @@ pub type HostVirtAddr = usize;
 pub type GuestPageNum = usize;
 pub type HostPageNum = usize;
 
+pub const PAGE_SIZE_4K: usize = 0x1000;
+
 pub trait IntoRvmPageTableFlags: core::fmt::Debug {
     // TODO: cache policy
     fn is_read(&self) -> bool;
