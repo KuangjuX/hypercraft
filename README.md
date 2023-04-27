@@ -9,3 +9,8 @@
 - [ ] multi-guest switch support
 - [ ] GuestPageTable, GuestMemorySetTrait abstract layer(`guest_create()`)
 
+## References
+- [rivosinc/salus](https://github.com/rivosinc/salus): Risc-V hypervisor for TEE development
+- [equation314/RVM-Tutorial](https://github.com/equation314/RVM-Tutorial): Let's write an x86 hypervisor in Rust from scratch!
+- [zircon](https://fuchsia.dev/fuchsia-src/concepts/kernel): Zircon is the core platform that powers Fuchsia. Zircon is composed of a kernel (source in /zircon/kernel) as well as a small set of userspace services, drivers, and libraries (source in /zircon/system/) necessary for the system to boot, talk to hardware, load userspace processes and run them, etc. Fuchsia builds a much larger OS on top of this foundation.
+
