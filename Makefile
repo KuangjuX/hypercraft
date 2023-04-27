@@ -4,7 +4,8 @@ MODE		:= debug
 APP			?= hello_world
 APP_ELF		:= target/$(TARGET)/$(MODE)/$(APP)
 APP_BIN		:= target/$(TARGET)/$(MODE)/$(APP).bin
-CPUS		:= 1
+CPUS		?= 1
+LOG			?= debug
 
 OBJDUMP     := rust-objdump --arch-name=riscv64
 OBJCOPY     := rust-objcopy --binary-architecture=riscv64
@@ -16,11 +17,13 @@ BOOTLOADER	:= bootloader/rustsbi-qemu.bin
 
 APP_ENTRY_PA := 0x80200000
 
-QEMUOPTS	= --machine virt -m 3G -bios $(BOOTLOADER) -nographic
+QEMUOPTS	= --machine virt -m 3G -bios $(BOOTLOADER) -nographic -smp $(CPUS)
 QEMUOPTS	+=-device loader,file=$(APP_BIN),addr=$(APP_ENTRY_PA)
 
+ARGS		:= -- -C link-arg=-Tapps/$(APP)/src/linker.ld -C force-frame-pointers=yes
+
 $(APP_BIN):
-	cargo rustc --manifest-path=apps/$(APP)/Cargo.toml -- -C link-arg=-Tapps/$(APP)/src/linker.ld -C force-frame-pointers=yes
+	LOG=$(LOG) cargo rustc --manifest-path=apps/$(APP)/Cargo.toml $(ARGS)
 	$(OBJCOPY) $(APP_ELF) --strip-all -O binary $@
 
 qemu: $(APP_BIN)
