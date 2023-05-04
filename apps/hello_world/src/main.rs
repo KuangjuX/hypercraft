@@ -107,6 +107,14 @@ impl HyperCraftHal for HyperCraftHalImpl {
 
     fn dealloc_16_page(ppn: hypercraft::HostPageNum) {}
 
+    fn alloc_pages(num_pages: usize) -> Option<HostPhysAddr> {
+        todo!()
+    }
+
+    fn dealloc_pages(pa: HostPhysAddr, num_pages: usize) {
+        todo!()
+    }
+
     fn vmexit_handler(vcpu: &mut hypercraft::VCpu<Self>, vm_exit_info: VmExitInfo) {
         match vm_exit_info {
             VmExitInfo::Ecall(sbi_msg) => {
@@ -156,9 +164,11 @@ fn hentry(hart_id: usize) -> ! {
     // create vcpu
     let percpu = HyperCraftPerCpu::<HyperCraftHalImpl>::new(0);
     let mut vcpu = percpu.create_vcpu(GUEST_START).unwrap();
+    debug!("vcpu created");
     let mut vcpus = VmCpus::new();
+    debug!("vmcpus created");
     // add vcpu into vm
-    vcpus.add_vcpu(vcpu);
+    vcpus.add_vcpu(vcpu).unwrap();
     let mut vm = VM::new(vcpus).unwrap();
 
     // vm run
