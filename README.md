@@ -10,7 +10,11 @@
 - [ ] GuestPageTable, GuestMemorySetTrait abstract layer(`guest_create()`)
 
 ## CPU Virtualization
+### Cpu Architecture
 ![](docs/figures/cpu-virtualization.png)
+
+### Cpu Boot Flow
+![](docs/figures/cpu-boot.png)
 
 ## References
 - [rivosinc/salus](https://github.com/rivosinc/salus): Risc-V hypervisor for TEE development

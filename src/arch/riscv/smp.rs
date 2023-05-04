@@ -1,4 +1,5 @@
 //! reference: https://github.com/rivosinc/salus/blob/main/src/smp.rs
+use alloc::{collections::VecDeque, vec::Vec};
 use spin::Once;
 
 use crate::{
@@ -12,6 +13,7 @@ pub struct PerCpu<H: HyperCraftHal> {
     cpu_id: usize,
     stack_top_addr: HostVirtAddr,
     marker: core::marker::PhantomData<H>,
+    vcpu_queue: VecDeque<usize>,
 }
 
 /// The base address of the per-CPU memory region.
@@ -38,6 +40,7 @@ impl<H: HyperCraftHal> PerCpu<H> {
                 cpu_id,
                 stack_top_addr,
                 marker: core::marker::PhantomData,
+                vcpu_queue: VecDeque::new(),
             };
             let ptr = Self::ptr_for_cpu(cpu_id);
             // Safety: ptr is guaranteed to be properly aligned and point to valid memory owned by
