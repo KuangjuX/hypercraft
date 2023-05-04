@@ -6,8 +6,11 @@
 - [x] Load & run hello world binary in example.
 - [ ] `percpu` Design
 - [ ] multi-core support
-- [ ] multi-guest switch support
+- [ ] multi-guest switch support(vcpu schedule)
 - [ ] GuestPageTable, GuestMemorySetTrait abstract layer(`guest_create()`)
+
+## CPU Virtualization
+![](docs/figures/cpu-virtualization.png)
 
 ## References
 - [rivosinc/salus](https://github.com/rivosinc/salus): Risc-V hypervisor for TEE development
