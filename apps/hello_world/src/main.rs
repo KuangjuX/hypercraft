@@ -60,6 +60,7 @@ const BOOT_STACK_SIZE: usize = 16 * PAGE_SIZE;
 const GUEST_START: usize = 0x9000_0000;
 
 #[link_section = ".bss.stack"]
+#[no_mangle]
 /// hypervisor boot stack
 static BOOT_STACK: [u8; BOOT_STACK_SIZE] = [0u8; BOOT_STACK_SIZE];
 

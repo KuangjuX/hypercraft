@@ -39,7 +39,9 @@ impl<H: HyperCraftHal> PerCpu<H> {
         PER_CPU_BASE.call_once(|| pcpu_pages);
         for cpu_id in 0..cpu_nums {
             let stack_top_addr = if cpu_id == boot_hart_id {
-                0
+                let boot_stack_top = Self::boot_cpu_stack()?;
+                debug!("boot_stack_top: {:#x}", boot_stack_top);
+                boot_stack_top
             } else {
                 H::alloc_pages((stack_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
                     .ok_or(HyperError::NoMemory)?
@@ -64,7 +66,7 @@ impl<H: HyperCraftHal> PerCpu<H> {
     }
 
     /// Initializes the TP pointer to point to PerCpu data.
-    fn setup_this_cpu(hart_id: usize) -> HyperResult<()> {
+    pub fn setup_this_cpu(hart_id: usize) -> HyperResult<()> {
         // Load TP with address of pur PerCpu struct.
         let tp = Self::ptr_for_cpu(hart_id) as usize;
         unsafe {
@@ -98,9 +100,18 @@ impl<H: HyperCraftHal> PerCpu<H> {
         pcpu
     }
 
+    /// Returns a pointer to the `PerCpu` for the given CPU.
     fn ptr_for_cpu(cpu_id: usize) -> *const PerCpu<H> {
         let pcpu_addr = PER_CPU_BASE.get().unwrap() + cpu_id * core::mem::size_of::<PerCpu<H>>();
         pcpu_addr as *const PerCpu<H>
+    }
+
+    fn boot_cpu_stack() -> HyperResult<GuestPhysAddr> {
+        // TODO: get boot stack information by interface
+        extern "Rust" {
+            fn BOOT_STACK();
+        }
+        Ok(BOOT_STACK as GuestPhysAddr)
     }
 }
 
