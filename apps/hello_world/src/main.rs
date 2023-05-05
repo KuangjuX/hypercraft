@@ -4,8 +4,7 @@
 
 use hyp_alloc::{frame_alloc, frame_dealloc, PhysPageNum};
 use hypercraft::{
-    Guest, GuestPhysAddr, HostPhysAddr, HyperCraftHal, HyperCraftPerCpu, VCpu, VmCpus, VmExitInfo,
-    VM,
+    Guest, GuestPhysAddr, HostPhysAddr, HyperCraftHal, PerCpu, VCpu, VmCpus, VmExitInfo, VM,
 };
 use riscv::register::sepc;
 use sbi::shutdown;
@@ -108,7 +107,16 @@ impl HyperCraftHal for HyperCraftHalImpl {
     fn dealloc_16_page(ppn: hypercraft::HostPageNum) {}
 
     fn alloc_pages(num_pages: usize) -> Option<HostPhysAddr> {
-        todo!()
+        assert!(num_pages >= 1);
+        let mut ppn = PhysPageNum(0);
+        for i in 0..num_pages {
+            if i == 0 {
+                ppn = frame_alloc().unwrap().ppn;
+            } else {
+                let _ = frame_alloc().unwrap().ppn;
+            }
+        }
+        Some(ppn.0 << 12)
     }
 
     fn dealloc_pages(pa: HostPhysAddr, num_pages: usize) {
@@ -162,11 +170,11 @@ fn hentry(hart_id: usize) -> ! {
     assert_eq!(GUEST_STACK.as_ptr() as usize, 0x9020_0000);
 
     // create vcpu
-    let percpu = HyperCraftPerCpu::<HyperCraftHalImpl>::new(0);
-    let mut vcpu = percpu.create_vcpu(GUEST_START).unwrap();
-    debug!("vcpu created");
+    // let percpu = HyperCraftPerCpu::<HyperCraftHalImpl>::new(0);
+    PerCpu::<HyperCraftHalImpl>::init(0, 0x4000).unwrap();
+    let percpu = PerCpu::<HyperCraftHalImpl>::this_cpu();
+    let mut vcpu = percpu.create_vcpu(GUEST_START, 0).unwrap();
     let mut vcpus = VmCpus::new();
-    debug!("vmcpus created");
     // add vcpu into vm
     vcpus.add_vcpu(vcpu).unwrap();
     let mut vm = VM::new(vcpus).unwrap();

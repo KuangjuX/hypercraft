@@ -7,7 +7,7 @@
     unused_imports
 )]
 #![deny(warnings)]
-#![feature(naked_functions, asm_const)]
+#![feature(naked_functions, asm_const, negative_impls)]
 
 extern crate alloc;
 
@@ -24,13 +24,12 @@ mod vcpus;
 
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
-pub use arch::{ArchGuestPageTable, GprIndex, Guest, HyperCallMsg, VCpu, VmExitInfo, VM};
+pub use arch::{ArchGuestPageTable, GprIndex, Guest, HyperCallMsg, PerCpu, VCpu, VmExitInfo, VM};
 pub use hal::HyperCraftHal;
 pub use memory::{
     GuestPageNum, GuestPageTable, GuestPhysAddr, GuestPhysMemorySetTrait, GuestVirtAddr,
     HostPageNum, HostPhysAddr, HostVirtAddr,
 };
-pub use percpu::HyperCraftPerCpu;
 pub use vcpus::VmCpus;
 
 #[derive(Debug, PartialEq)]
