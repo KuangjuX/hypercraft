@@ -4,7 +4,7 @@
 ## RoadMap
 - [x] Vcpu abstract layer(`vcpu_create()`, `vcpu_read()`, `vcpu_write()`, `vcpu_run()`)
 - [x] Load & run hello world binary in example.
-- [x] `percpu` Design to support SMP
+- [x] `PerCpu` struct Design to support SMP
 - [ ] multi-guest switch support(vcpu schedule)
 - [ ] GuestPageTable, GuestMemorySetTrait abstract layer(`guest_create()`)
 
