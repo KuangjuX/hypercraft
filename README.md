@@ -7,14 +7,14 @@
     - [x] Load & run hello world binary in example.
     - [x] `PerCpu` struct Design to support SMP
     - [ ] Multi-Guest switch support(vcpu schedule)
-- [ ] Memory Virtualization
+- Memory Virtualization
     - [ ] `GuestMemorySet` Design
     - [ ] Multi-level Page Table Supportd
-- [ ] I/O Virtualization
+- I/O Virtualization
     - [ ] Device Passthrought Supportd
     - [ ] IOMMU Support
     - [ ] Device Emulate
-- [ ] Interrupt Virtualization
+- Interrupt Virtualization
     - [ ] PLIC Emulate && Interrupt Inject
     - [ ] AIA Supported
 ## CPU Virtualization
