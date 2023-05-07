@@ -89,6 +89,19 @@ pub unsafe extern "C" fn start() -> ! {
     )
 }
 
+#[link_section = ".text.entry"]
+#[naked]
+pub unsafe extern "C" fn _secondary_start() -> ! {
+    core::arch::asm!(
+        "csrw sstatus, zero",
+        "csrw sie zero",
+        // At start, A1 holds the top of the stack.
+        "mv sp, a1",
+        "call secondary_main"
+        options(noreturn)
+    )
+}
+
 pub struct HyperCraftHalImpl;
 
 impl HyperCraftHal for HyperCraftHalImpl {
@@ -163,15 +176,11 @@ fn hentry(hart_id: usize) -> ! {
     hyp_alloc::heap_init();
     logging::init();
     println!("Booting on CPU{} (hart {})", hart_id, hart_id);
-    // println!("setup_guest addr: {:#x}", setup_guest as usize);
-    // println!("hello_world addr: {:#x}", hello_world as usize);
-    // println!("guest_stack addr: {:#x}", GUEST_STACK.as_ptr() as usize);
     assert_eq!(setup_guest as usize, 0x9000_0000);
     assert_eq!(hello_world as usize, 0x9000_1000);
     assert_eq!(GUEST_STACK.as_ptr() as usize, 0x9020_0000);
 
-    // create vcpu
-    // let percpu = HyperCraftPerCpu::<HyperCraftHalImpl>::new(0);
+    // Set up per-CPU memory and prepare the structures for secondary CPUs boot.
     PerCpu::<HyperCraftHalImpl>::init(0, 0x4000).unwrap();
     let percpu = PerCpu::<HyperCraftHalImpl>::this_cpu();
     let mut vcpu = percpu.create_vcpu(GUEST_START, 0).unwrap();

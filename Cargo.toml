@@ -16,6 +16,7 @@ memoffset = { version = ">=0.6.5", features = ["unstable_const"] }
 arrayvec = { version = "0.7.2", default-features = false }
 sbi-spec = { version = "0.0.6", features = ["legacy"] }
 spin = { version = "0.9", features = ["once", "rwlock", "spin_mutex"] }
+driver_cpu = { path = "crates/driver_cpu"}
 
 [target.'cfg(target_arch = "riscv64")'.dependencies]
 riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }

@@ -117,3 +117,5 @@ impl<H: HyperCraftHal> PerCpu<H> {
 
 // PerCpu state obvioudly cannot be shared between threads.
 impl<H: HyperCraftHal> !Sync for PerCpu<H> {}
+
+// pub fn start_secondary_cpus() -> HyperResult<()> {}
