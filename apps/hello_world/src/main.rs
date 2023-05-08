@@ -4,7 +4,8 @@
 
 use hyp_alloc::{frame_alloc, frame_dealloc, PhysPageNum};
 use hypercraft::{
-    Guest, GuestPhysAddr, HostPhysAddr, HyperCraftHal, PerCpu, VCpu, VmCpus, VmExitInfo, VM,
+    start_secondary_cpus, Guest, GuestPhysAddr, HostPhysAddr, HyperCraftHal, PerCpu, VCpu, VmCpus,
+    VmExitInfo, VM,
 };
 use riscv::register::sepc;
 use sbi::shutdown;
@@ -97,7 +98,7 @@ pub unsafe extern "C" fn _secondary_start() -> ! {
         "csrw sie zero",
         // At start, A1 holds the top of the stack.
         "mv sp, a1",
-        "call secondary_main"
+        "call secondary_main",
         options(noreturn)
     )
 }
@@ -171,7 +172,7 @@ fn clear_bss() {
 }
 
 #[no_mangle]
-fn hentry(hart_id: usize) -> ! {
+fn hentry(hart_id: usize, dtb: *const u8) -> ! {
     clear_bss();
     hyp_alloc::heap_init();
     logging::init();
@@ -180,11 +181,25 @@ fn hentry(hart_id: usize) -> ! {
     assert_eq!(hello_world as usize, 0x9000_1000);
     assert_eq!(GUEST_STACK.as_ptr() as usize, 0x9020_0000);
 
+    // parse device info
+    // debug!("dtb: {:p}", dtb);
+    unsafe { dtb::init(dtb) }
+    let node = dtb::get_node("/cpus").unwrap();
+    debug!("node: {:?}", node.name());
+
     // Set up per-CPU memory and prepare the structures for secondary CPUs boot.
     PerCpu::<HyperCraftHalImpl>::init(0, 0x4000).unwrap();
+
+    // Set up other harts
+    // start_secondary_cpus(cpu_info);
+
+    // get current hart
     let percpu = PerCpu::<HyperCraftHalImpl>::this_cpu();
+
+    // create virtual cpus
     let mut vcpu = percpu.create_vcpu(GUEST_START, 0).unwrap();
     let mut vcpus = VmCpus::new();
+
     // add vcpu into vm
     vcpus.add_vcpu(vcpu).unwrap();
     let mut vm = VM::new(vcpus).unwrap();

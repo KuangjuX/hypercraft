@@ -2,6 +2,7 @@
 use core::arch::asm;
 
 use alloc::{collections::VecDeque, vec::Vec};
+use driver_cpu::CpuInfo;
 use spin::{Mutex, Once};
 
 use crate::{
@@ -100,6 +101,10 @@ impl<H: HyperCraftHal> PerCpu<H> {
         pcpu
     }
 
+    pub fn stack_top_addr(&self) -> HostVirtAddr {
+        self.stack_top_addr
+    }
+
     /// Returns a pointer to the `PerCpu` for the given CPU.
     fn ptr_for_cpu(cpu_id: usize) -> *const PerCpu<H> {
         let pcpu_addr = PER_CPU_BASE.get().unwrap() + cpu_id * core::mem::size_of::<PerCpu<H>>();
@@ -118,4 +123,29 @@ impl<H: HyperCraftHal> PerCpu<H> {
 // PerCpu state obvioudly cannot be shared between threads.
 impl<H: HyperCraftHal> !Sync for PerCpu<H> {}
 
-// pub fn start_secondary_cpus() -> HyperResult<()> {}
+/// Boots secondary CPUs, using the HSM SBI call. Upon return, all secondary CPUs will have
+/// entered secondary_init().
+/// TODO: remove this function, use `percpu` instead.
+pub fn start_secondary_cpus<H: HyperCraftHal + 'static>(cpu_info: &CpuInfo) -> HyperResult<()> {
+    // TODO: remove _secondary_start
+    extern "C" {
+        fn _secondary_start();
+    }
+    let boot_cpu = PerCpu::<H>::this_cpu();
+    for i in 0..cpu_info.num_cpus() {
+        if i == boot_cpu.cpu_id {
+            continue;
+        }
+
+        // Start the hart with its stack physical address in A1.
+        // Safe since it is set up to point to a valid PerCpu struct in init().
+        let pcpu = unsafe { PerCpu::<H>::ptr_for_cpu(i).as_ref().unwrap() };
+        let stack_top_addr = pcpu.stack_top_addr();
+
+        // hsm call to start other hart
+        // a0: hartid
+        // a1: stack_top_addr
+        sbi_rt::hart_start(i, _secondary_start as usize, stack_top_addr);
+    }
+    Ok(())
+}

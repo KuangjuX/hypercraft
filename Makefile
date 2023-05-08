@@ -4,7 +4,7 @@ MODE		:= debug
 APP			?= hello_world
 APP_ELF		:= target/$(TARGET)/$(MODE)/$(APP)
 APP_BIN		:= target/$(TARGET)/$(MODE)/$(APP).bin
-CPUS		?= 1
+CPUS		?= 2
 LOG			?= debug
 
 OBJDUMP     := rust-objdump --arch-name=riscv64
@@ -19,6 +19,7 @@ APP_ENTRY_PA := 0x80200000
 
 QEMUOPTS	= --machine virt -m 3G -bios $(BOOTLOADER) -nographic -smp $(CPUS)
 QEMUOPTS	+=-device loader,file=$(APP_BIN),addr=$(APP_ENTRY_PA)
+# QEMUOPTS	+= -machine dumpdtb=qemu-virt.dtb
 
 ARGS		:= -- -C link-arg=-Tapps/$(APP)/src/linker.ld -C force-frame-pointers=yes
 

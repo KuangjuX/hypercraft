@@ -12,3 +12,5 @@ spin = "0.9.4"
 log = "0.4.17"
 hypercraft = {path = "../../"}
 riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }
+driver_cpu = {path = "../../crates/driver_cpu"}
+dtb = {path = "../../crates/dtb"}
