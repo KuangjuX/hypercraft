@@ -1,5 +1,20 @@
 # hypercraft
-🚧 WIP 🚧 hypercraft is a VMM library written in Rust. If you are interested in Design & Implement about this project, please see this [discussion](https://github.com/orgs/rcore-os/discussions/13).
+🚧 WIP 🚧 hypercraft is a VMM library written in Rust. If you are interested in Design & Implement about this project, please see this [discussion](https://github.com/orgs/rcore-os/discussions/13). Currently, hypercraft relies heavily on the arceos crate, reusing multiple crates and modules from arceos for development.
+
+## Build & Run
+```
+# create workspace
+mkdir $(WORKSPACE)
+cd $(WORKSPACE)
+
+# clone project
+git clone https://github.com/rcore-os/arceos.git
+git clone https://github.com/KuangjuX/hypercraft.git
+
+# build & run
+cd hypercraft
+make qemu
+```
 
 ## RoadMap
 - CPU Virtualization
@@ -17,12 +32,7 @@
 - Interrupt Virtualization
     - [ ] PLIC Emulate && Interrupt Inject
     - [ ] AIA Supported
-## CPU Virtualization
-### Cpu Architecture
-![](docs/figures/cpu-virtualization.png)
 
-### Cpu Boot Flow
-![](docs/figures/cpu-boot.png)
 
 ## References
 - [rivosinc/salus](https://github.com/rivosinc/salus): Risc-V hypervisor for TEE development
