@@ -19,10 +19,14 @@ QEMU 		:= $(QEMUPATH)qemu-system-riscv64
 BOOTLOADER	:= bootloader/rustsbi-qemu.bin
 
 PLATFORM 	?= qemu-virt-riscv
-features-y  := libax/platform-$(PLATFORM)
 
-features-y += libax/log-level-$(LOG)
-features-y += libax/alloc
+ifeq ($(APP), hello_world)
+	features-y  := 
+else ifeq ($(APP), hv)
+	features-y  := libax/platform-$(PLATFORM)
+	features-y  += libax/log-level-$(LOG)
+	features-y  += libax/alloc
+endif
 
 
 APP_ENTRY_PA := 0x80200000

@@ -9,6 +9,7 @@ edition = "2021"
 axlog = {path = "../../arceos/modules/axlog"}
 axalloc = {path = "../../arceos/modules/axalloc"}
 axhal   = {path = "../../arceos/modules/axhal"}
+axconfig = { path = "../../arceos/modules/axconfig" }
 crate_interface = { path = "../../arceos/crates/crate_interface" }
 
 
