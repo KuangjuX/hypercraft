@@ -2,12 +2,16 @@
 name = "hypercraft"
 version = "0.1.0"
 edition = "2021"
+authors = ["KuangjuX <kuangjux@outlook.com>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
 members = [
-    "apps/hello_world"
+    "apps/hello_world",
+    "apps/hv",
+    "hvruntime",
+    "ulib/libax"
 ]
 
 [dependencies]
