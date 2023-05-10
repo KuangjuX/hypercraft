@@ -18,6 +18,10 @@ QEMUPATH	?= ~/software/qemu/qemu-7.1.0/build/
 QEMU 		:= $(QEMUPATH)qemu-system-riscv64
 BOOTLOADER	:= bootloader/rustsbi-qemu.bin
 
+GUEST 		?= hello_world
+GUEST_ELF	:= target/$(TARGET)/$(MODE)/$(GUEST)
+GUEST_BIN	:= $(GUEST_ELF).bin
+
 PLATFORM 	?= qemu-virt-riscv
 
 ifeq ($(APP), hello_world)
@@ -43,11 +47,15 @@ $(APP_BIN):
 	LOG=$(LOG) cargo rustc --features "$(features-y)" --manifest-path=$(APP)/Cargo.toml $(ARGS)
 	$(OBJCOPY) $(APP_ELF) --strip-all -O binary $@
 
-qemu: $(APP_BIN)
+$(GUEST_BIN):
+	cargo rustc --manifest-path=guest/$(GUEST)/Cargo.toml -- -C link-arg=-Tguest/$(GUEST)/src/linker.ld
+	$(OBJCOPY) $(GUEST_ELF) --strip-all -O binary $(GUEST_BIN)
+
+qemu: $(APP_BIN) $(GUEST_BIN)
 	$(QEMU) $(QEMUOPTS)
 
 clean:
-	rm $(APP_BIN) $(APP_ELF)
+	rm $(APP_BIN) $(APP_ELF) $(GUEST_ELF) $(GUEST_BIN)
 
 debug: $(APP_BIN)
 	@tmux new-session -d \
