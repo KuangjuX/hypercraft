@@ -5,8 +5,8 @@ use alloc::{collections::VecDeque, vec::Vec};
 use spin::{Mutex, Once};
 
 use crate::{
-    memory::PAGE_SIZE_4K, GuestPhysAddr, HostPhysAddr, HostVirtAddr, HyperCraftHal, HyperError,
-    HyperResult, VCpu,
+    memory::PAGE_SIZE_4K, GuestPhysAddr, GuestVirtAddr, HostPhysAddr, HostVirtAddr, HyperCraftHal,
+    HyperError, HyperResult, VCpu,
 };
 
 use super::detect::detect_h_extension;
@@ -77,7 +77,7 @@ impl<H: HyperCraftHal> PerCpu<H> {
     }
 
     /// Create a `Vcpu`, set the entry point to `entry` and bind this vcpu into the current CPU.
-    pub fn create_vcpu(&mut self, entry: GuestPhysAddr, vcpu_id: usize) -> HyperResult<VCpu<H>> {
+    pub fn create_vcpu(&mut self, entry: GuestVirtAddr, vcpu_id: usize) -> HyperResult<VCpu<H>> {
         if !detect_h_extension() {
             Err(crate::HyperError::BadState)
         } else {
@@ -112,10 +112,11 @@ impl<H: HyperCraftHal> PerCpu<H> {
 
     fn boot_cpu_stack() -> HyperResult<GuestPhysAddr> {
         // TODO: get boot stack information by interface
-        extern "Rust" {
-            fn BOOT_STACK();
-        }
-        Ok(BOOT_STACK as GuestPhysAddr)
+        // extern "Rust" {
+        //     fn BOOT_STACK();
+        // }
+        // Ok(BOOT_STACK as GuestPhysAddr)
+        Ok(0 as GuestPhysAddr)
     }
 }
 

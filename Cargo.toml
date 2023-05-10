@@ -8,10 +8,10 @@ authors = ["KuangjuX <kuangjux@outlook.com>"]
 
 [workspace]
 members = [
-    "apps/hello_world",
-    "apps/hv",
+    "hv",
     "hvruntime",
-    "ulib/libax"
+    "ulib/libax",
+    "guest/hello_world"
 ]
 
 [dependencies]

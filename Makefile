@@ -26,6 +26,7 @@ else ifeq ($(APP), hv)
 	features-y  := libax/platform-$(PLATFORM)
 	features-y  += libax/log-level-$(LOG)
 	features-y  += libax/alloc
+	features-y  += libax/hv
 endif
 
 
@@ -39,7 +40,7 @@ LD_SCRIPTS	:= hvruntime/src/linker.ld
 ARGS		:= -- -C link-arg=-T$(LD_SCRIPTS) -C force-frame-pointers=yes
 
 $(APP_BIN):
-	LOG=$(LOG) cargo rustc --features "$(features-y)" --manifest-path=apps/$(APP)/Cargo.toml $(ARGS)
+	LOG=$(LOG) cargo rustc --features "$(features-y)" --manifest-path=$(APP)/Cargo.toml $(ARGS)
 	$(OBJCOPY) $(APP_ELF) --strip-all -O binary $@
 
 qemu: $(APP_BIN)

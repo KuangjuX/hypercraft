@@ -27,6 +27,7 @@ cbindings = ["cbindgen", "bindgen"]
 
 # Memory
 alloc = ["dep:axalloc", "hvruntime/alloc", "axio/alloc"]
+
 # paging = ["axruntime/paging"]
 
 # Interrupts
@@ -46,6 +47,9 @@ alloc = ["dep:axalloc", "hvruntime/alloc", "axio/alloc"]
 
 # Display
 # display = ["axruntime/display", "dep:axdisplay"]
+
+# Hypervisor
+hv = ["hypercraft"]
 
 # Logging
 log-level-off = ["axlog/log-level-off"]
@@ -77,6 +81,7 @@ axnet = { path = "../../../arceos/modules/axnet", optional = true }
 axsync = { path = "../../../arceos/modules/axsync", default-features = false, optional = true }
 axtask = { path = "../../../arceos/modules/axtask", default-features = false, optional = true }
 hvruntime = {path = "../../hvruntime", default-features = false}
+hypercraft = {path = "../../", optional = true}
 
 [build-dependencies]
 cbindgen = { version = "0.24", optional = true }

@@ -1,15 +1,18 @@
 #![no_std]
+#![deny(warnings)]
 #![allow(clippy::if_same_then_else)]
 use axlog::ax_println;
 
 #[macro_use]
 extern crate axlog;
 
+mod hv;
 mod lang_items;
 mod trap;
 
+pub use hv::HyperCraftHalImpl;
+
 extern "C" {
-    fn skernel();
     fn ekernel();
 }
 
@@ -73,6 +76,7 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
     info!("Logging is enabled");
     #[cfg(feature = "alloc")]
     {
+        info!("Initialize allocator");
         init_allocator();
     }
 
@@ -84,31 +88,9 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
 
 #[cfg(feature = "alloc")]
 fn init_allocator() {
-    // use axhal::mem::{memory_regions, phys_to_virt, MemRegionFlags};
-
-    // let mut max_region_size = 0;
-    // let mut max_region_paddr = 0.into();
-    // for r in memory_regions() {
-    //     if r.flags.contains(MemRegionFlags::FREE) && r.size > max_region_size {
-    //         max_region_size = r.size;
-    //         max_region_paddr = r.paddr;
-    //     }
-    // }
-    // for r in memory_regions() {
-    //     if r.flags.contains(MemRegionFlags::FREE) && r.paddr == max_region_paddr {
-    //         axalloc::global_init(phys_to_virt(r.paddr).as_usize(), r.size);
-    //         break;
-    //     }
-    // }
-    // for r in memory_regions() {
-    //     if r.flags.contains(MemRegionFlags::FREE) && r.paddr != max_region_paddr {
-    //         axalloc::global_add_memory(phys_to_virt(r.paddr).as_usize(), r.size)
-    //             .expect("add heap memory region failed");
-    //     }
-    // }
-    debug!(
-        "skernel: {:#x}, ekernel: {:#x}",
-        skernel as usize, ekernel as usize
+    use axhal::mem::phys_to_virt;
+    axalloc::global_init(
+        ekernel as usize,
+        (phys_to_virt(0x9000_0000.into()) - ekernel as usize).into(),
     );
-    axalloc::global_init(ekernel as usize, 0xffff_ffc0_9000_0000 - ekernel as usize);
 }

@@ -11,6 +11,7 @@ axalloc = {path = "../../arceos/modules/axalloc"}
 axhal   = {path = "../../arceos/modules/axhal"}
 axconfig = { path = "../../arceos/modules/axconfig" }
 crate_interface = { path = "../../arceos/crates/crate_interface" }
+hypercraft = { path = "../"}
 
 
 

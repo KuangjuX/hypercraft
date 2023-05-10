@@ -57,6 +57,9 @@ pub mod sync;
 pub mod task;
 pub mod time;
 
+#[cfg(feature = "hv")]
+pub mod hv;
+
 #[cfg(feature = "fs")]
 pub mod fs;
 

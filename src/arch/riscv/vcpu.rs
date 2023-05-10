@@ -6,7 +6,7 @@ use memoffset::offset_of;
 // use alloc::sync::Arc;
 use riscv::register::{hstatus, htinst, htval, scause, sstatus, stval};
 
-use crate::{arch::sbi::SbiMessage, GuestPhysAddr, HyperCraftHal, VmExitInfo};
+use crate::{arch::sbi::SbiMessage, GuestPhysAddr, GuestVirtAddr, HyperCraftHal, VmExitInfo};
 
 use super::regs::{GeneralPurposeRegisters, GprIndex};
 // use super::Guest;
@@ -213,7 +213,7 @@ pub struct VCpu<H: HyperCraftHal> {
 }
 
 impl<H: HyperCraftHal> VCpu<H> {
-    pub fn create(entry: GuestPhysAddr, vcpu_id: usize) -> Self {
+    pub fn create(entry: GuestVirtAddr, vcpu_id: usize) -> Self {
         let mut regs = VmCpuRegisters::default();
         // Set hstatus
         let mut hstatus = hstatus::read();
