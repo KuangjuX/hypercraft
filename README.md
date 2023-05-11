@@ -8,7 +8,7 @@ mkdir $(WORKSPACE)
 cd $(WORKSPACE)
 
 # clone project
-git clone https://github.com/rcore-os/arceos.git
+git clone https://github.com/KuangjuX/arceos.git
 git clone https://github.com/KuangjuX/hypercraft.git
 
 # build & run
@@ -24,6 +24,7 @@ make qemu GUEST=hello_world ARCH=riscv64 APP=hv
     - [ ] Multi-Guest switch support(vcpu schedule)
 - Memory Virtualization
     - [ ] `GuestMemorySet` Design
+    - [ ] Two Stage Page Table Translation
     - [ ] Multi-level Page Table Supportd
 - I/O Virtualization
     - [ ] Device Passthrought Supportd

@@ -10,7 +10,6 @@ mod vm_pages;
 mod vmexit;
 
 use detect::detect_h_extension;
-pub use ept::GuestPageTableSv39 as ArchGuestPageTable;
 pub use guest::Guest;
 pub use regs::GprIndex;
 pub use sbi::SbiMessage as HyperCallMsg;

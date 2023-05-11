@@ -24,7 +24,7 @@ mod vcpus;
 
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
-pub use arch::{ArchGuestPageTable, GprIndex, Guest, HyperCallMsg, PerCpu, VCpu, VmExitInfo, VM};
+pub use arch::{GprIndex, Guest, HyperCallMsg, PerCpu, VCpu, VmExitInfo, VM};
 pub use hal::HyperCraftHal;
 pub use memory::{
     GuestPageNum, GuestPageTable, GuestPhysAddr, GuestPhysMemorySetTrait, GuestVirtAddr,
