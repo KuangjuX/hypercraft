@@ -5,11 +5,25 @@
 
 #[no_mangle]
 unsafe extern "C" fn hello_world() {
+    sbi_rt::legacy::console_putchar('[' as usize);
+    sbi_rt::legacy::console_putchar('G' as usize);
+    sbi_rt::legacy::console_putchar('U' as usize);
+    sbi_rt::legacy::console_putchar('E' as usize);
+    sbi_rt::legacy::console_putchar('S' as usize);
+    sbi_rt::legacy::console_putchar('T' as usize);
+    sbi_rt::legacy::console_putchar(']' as usize);
+    sbi_rt::legacy::console_putchar(' ' as usize);
     sbi_rt::legacy::console_putchar('h' as usize);
     sbi_rt::legacy::console_putchar('e' as usize);
     sbi_rt::legacy::console_putchar('l' as usize);
     sbi_rt::legacy::console_putchar('l' as usize);
     sbi_rt::legacy::console_putchar('o' as usize);
+    sbi_rt::legacy::console_putchar(' ' as usize);
+    sbi_rt::legacy::console_putchar('w' as usize);
+    sbi_rt::legacy::console_putchar('o' as usize);
+    sbi_rt::legacy::console_putchar('r' as usize);
+    sbi_rt::legacy::console_putchar('l' as usize);
+    sbi_rt::legacy::console_putchar('d' as usize);
     sbi_rt::legacy::console_putchar('\n' as usize);
 }
 
@@ -22,8 +36,8 @@ static BOOT_STACK: [u8; BOOT_STACK_SIZE] = [0u8; BOOT_STACK_SIZE];
 
 #[naked]
 #[link_section = ".text.entry"]
-#[export_name = "_start"]
-unsafe extern "C" fn setup_guest() {
+#[no_mangle]
+unsafe extern "C" fn _start() -> ! {
     core::arch::asm!(
         // prepare stack
         "la sp, {boot_stack}",

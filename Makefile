@@ -38,18 +38,19 @@ APP_ENTRY_PA := 0x80200000
 
 QEMUOPTS	= --machine virt -m 3G -bios $(BOOTLOADER) -nographic -smp $(CPUS)
 QEMUOPTS	+=-device loader,file=$(APP_BIN),addr=$(APP_ENTRY_PA)
+QEMUOPTS 	+=-device loader,file=$(GUEST_BIN),addr=0x90000000
 
 LD_SCRIPTS	:= hvruntime/src/linker.ld
 
-ARGS		:= -- -C link-arg=-T$(LD_SCRIPTS) -C force-frame-pointers=yes
+ARGS		:= -- -Clink-arg=-T$(LD_SCRIPTS) -Cforce-frame-pointers=yes
 
 $(APP_BIN):
 	LOG=$(LOG) cargo rustc --features "$(features-y)" --manifest-path=$(APP)/Cargo.toml $(ARGS)
 	$(OBJCOPY) $(APP_ELF) --strip-all -O binary $@
 
 $(GUEST_BIN):
-	cargo rustc --manifest-path=guest/$(GUEST)/Cargo.toml -- -C link-arg=-Tguest/$(GUEST)/src/linker.ld
-	$(OBJCOPY) $(GUEST_ELF) --strip-all -O binary $(GUEST_BIN)
+	cargo rustc --manifest-path=guest/$(GUEST)/Cargo.toml -- -Clink-arg=-Tguest/$(GUEST)/src/linker.ld -Cforce-frame-pointers=yes
+	$(OBJCOPY) $(GUEST_ELF) --strip-all -O binary $@
 
 qemu: $(APP_BIN) $(GUEST_BIN)
 	$(QEMU) $(QEMUOPTS)

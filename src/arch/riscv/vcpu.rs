@@ -256,7 +256,9 @@ impl<H: HyperCraftHal> VCpu<H> {
                 let sbi_msg = SbiMessage::from_regs(regs.guest_regs.gprs.a_regs()).ok();
                 VmExitInfo::Ecall(sbi_msg)
             }
-            _ => unimplemented!(),
+            _ => {
+                panic!("Unhandled trap: {:?}", scause.cause());
+            }
         }
     }
 

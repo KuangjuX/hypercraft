@@ -21,7 +21,8 @@ fn main() {
     let pcpu = PerCpu::<HyperCraftHalImpl>::this_cpu();
 
     // create vcpu
-    let vcpu = hv::create_vcpu(pcpu, 0x9000_0000, 0).unwrap();
+    // let vcpu = hv::create_vcpu(pcpu, 0x9000_0000, 0).unwrap();
+    let vcpu = pcpu.create_vcpu(0x9000_0000, 0).unwrap();
     let mut vcpus = VmCpus::new();
 
     // add vcpu into vm

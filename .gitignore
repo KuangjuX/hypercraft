@@ -4,3 +4,5 @@ rust-analyzer.toml
 .vscode/
 *.dtb
 *.dtc
+hello_world.S
+*.txt
