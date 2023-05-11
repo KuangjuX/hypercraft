@@ -6,7 +6,9 @@ use memoffset::offset_of;
 // use alloc::sync::Arc;
 use riscv::register::{hstatus, htinst, htval, scause, sstatus, stval};
 
-use crate::{arch::sbi::SbiMessage, GuestPhysAddr, GuestVirtAddr, HyperCraftHal, VmExitInfo};
+use crate::{
+    arch::sbi::SbiMessage, GuestPhysAddr, GuestVirtAddr, HostPhysAddr, HyperCraftHal, VmExitInfo,
+};
 
 use super::regs::{GeneralPurposeRegisters, GprIndex};
 // use super::Guest;
@@ -213,7 +215,7 @@ pub struct VCpu<H: HyperCraftHal> {
 }
 
 impl<H: HyperCraftHal> VCpu<H> {
-    pub fn create(entry: GuestVirtAddr, vcpu_id: usize) -> Self {
+    pub fn new(vcpu_id: usize, entry: GuestPhysAddr, gpt_root: HostPhysAddr) -> Self {
         let mut regs = VmCpuRegisters::default();
         // Set hstatus
         let mut hstatus = hstatus::read();
@@ -224,6 +226,10 @@ impl<H: HyperCraftHal> VCpu<H> {
         let mut sstatus = sstatus::read();
         sstatus.set_spp(sstatus::SPP::Supervisor);
         regs.guest_regs.sstatus = sstatus.bits();
+
+        // Set hgatp
+        // TODO: Sv39 currently, but should be configurable
+        regs.virtual_hs_csrs.hgatp = 8usize << 60 | gpt_root >> 12;
 
         // Set entry
         regs.guest_regs.sepc = entry;

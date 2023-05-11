@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 axlog = {path = "../../arceos/modules/axlog"}
-axalloc = {path = "../../arceos/modules/axalloc"}
+axalloc = {path = "../../arceos/modules/axalloc", optional = true}
 axhal   = {path = "../../arceos/modules/axhal"}
 axconfig = { path = "../../arceos/modules/axconfig" }
 crate_interface = { path = "../../arceos/crates/crate_interface" }
@@ -18,5 +18,6 @@ hypercraft = { path = "../"}
 [features]
 default = []
 smp = []
-alloc = []
+alloc = ["dep:axalloc"]
+paging = ["alloc", "axhal/paging"]
 

@@ -77,12 +77,17 @@ impl<H: HyperCraftHal> PerCpu<H> {
     }
 
     /// Create a `Vcpu`, set the entry point to `entry` and bind this vcpu into the current CPU.
-    pub fn create_vcpu(&mut self, entry: GuestVirtAddr, vcpu_id: usize) -> HyperResult<VCpu<H>> {
+    pub fn create_vcpu(
+        &mut self,
+        vcpu_id: usize,
+        entry: GuestPhysAddr,
+        gpt_root: HostPhysAddr,
+    ) -> HyperResult<VCpu<H>> {
         if !detect_h_extension() {
             Err(crate::HyperError::BadState)
         } else {
             self.vcpu_queue.lock().push_back(vcpu_id);
-            Ok(VCpu::<H>::create(entry, vcpu_id))
+            Ok(VCpu::<H>::new(vcpu_id, entry, gpt_root))
         }
     }
 

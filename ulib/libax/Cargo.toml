@@ -29,6 +29,7 @@ cbindings = ["cbindgen", "bindgen"]
 alloc = ["dep:axalloc", "hvruntime/alloc", "axio/alloc"]
 
 # paging = ["axruntime/paging"]
+paging = ["hvruntime/paging"]
 
 # Interrupts
 # irq = ["axruntime/irq"]

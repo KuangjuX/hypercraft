@@ -31,6 +31,7 @@ else ifeq ($(APP), hv)
 	features-y  += libax/log-level-$(LOG)
 	features-y  += libax/alloc
 	features-y  += libax/hv
+	features-y  += libax/paging
 endif
 
 
@@ -38,7 +39,9 @@ APP_ENTRY_PA := 0x80200000
 
 QEMUOPTS	= --machine virt -m 3G -bios $(BOOTLOADER) -nographic -smp $(CPUS)
 QEMUOPTS	+=-device loader,file=$(APP_BIN),addr=$(APP_ENTRY_PA)
-QEMUOPTS 	+=-device loader,file=$(GUEST_BIN),addr=0x90000000
+ifeq ($(APP), hv)
+	QEMUOPTS	+=-device loader,file=$(GUEST_BIN),addr=0x90000000
+endif
 
 LD_SCRIPTS	:= hvruntime/src/linker.ld
 
