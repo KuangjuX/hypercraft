@@ -13,7 +13,7 @@ git clone https://github.com/KuangjuX/hypercraft.git
 
 # build & run
 cd hypercraft
-make qemu
+make qemu GUEST=hello_world ARCH=riscv64 APP=hv
 ```
 
 ## RoadMap
