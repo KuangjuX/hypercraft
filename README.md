@@ -34,6 +34,11 @@ make qemu GUEST=hello_world ARCH=riscv64 APP=hv
     - [ ] AIA Supported
 
 
+## Relevant Issues
+
+- [rcore-os/arceos #41](https://github.com/rcore-os/arceos/issues/41)
+- [rcore-os/arceos #39](https://github.com/rcore-os/arceos/issues/39)
+
 ## References
 - [rivosinc/salus](https://github.com/rivosinc/salus): Risc-V hypervisor for TEE development
 - [equation314/RVM-Tutorial](https://github.com/equation314/RVM-Tutorial): Let's write an x86 hypervisor in Rust from scratch!
