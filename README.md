@@ -23,8 +23,7 @@ make qemu GUEST=hello_world ARCH=riscv64 APP=hv
     - [x] `PerCpu` struct Design to support SMP
     - [ ] Multi-Guest switch support(vcpu schedule)
 - Memory Virtualization
-    - [ ] `GuestMemorySet` Design
-    - [ ] Two Stage Page Table Translation
+    - [x] Nested Page Table Support
     - [ ] Multi-level Page Table Supportd
 - I/O Virtualization
     - [ ] Device Passthrought Supportd

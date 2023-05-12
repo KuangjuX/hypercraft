@@ -93,7 +93,7 @@ impl GuestPageTableTrait for GuestPageTable {
         flags: MappingFlags,
     ) -> HyperResult<()> {
         self.0
-            .map_region(VirtAddr::from(gpa), PhysAddr::from(hpa), size, flags, false)
+            .map_region(VirtAddr::from(gpa), PhysAddr::from(hpa), size, flags, true)
             .map_err(|err| {
                 error!("paging error: {:?}", err);
                 HyperError::Internal
