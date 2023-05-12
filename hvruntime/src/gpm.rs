@@ -85,6 +85,22 @@ impl GuestPageTableTrait for GuestPageTable {
         Ok(())
     }
 
+    fn map_region(
+        &mut self,
+        gpa: GuestPhysAddr,
+        hpa: hypercraft::HostPhysAddr,
+        size: usize,
+        flags: MappingFlags,
+    ) -> HyperResult<()> {
+        self.0
+            .map_region(VirtAddr::from(gpa), PhysAddr::from(hpa), size, flags, false)
+            .map_err(|err| {
+                error!("paging error: {:?}", err);
+                HyperError::Internal
+            })?;
+        Ok(())
+    }
+
     fn unmap(&mut self, gpa: GuestPhysAddr) -> HyperResult<()> {
         let (_, _) = self.0.unmap(VirtAddr::from(gpa)).map_err(|paging_err| {
             error!("paging error: {:?}", paging_err);

@@ -234,7 +234,12 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
         // TODO: Sv39 currently, but should be configurable
         // regs.virtual_hs_csrs.hgatp = 8usize << 60 | gpt_root >> 12;
         regs.virtual_hs_csrs.hgatp = gpt.token();
-
+        unsafe {
+            core::arch::asm!(
+                "csrw hgatp, {hgatp}",
+                hgatp = in(reg) regs.virtual_hs_csrs.hgatp,
+            );
+        }
         // Set entry
         regs.guest_regs.sepc = entry;
         Self {

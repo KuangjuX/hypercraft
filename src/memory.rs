@@ -22,12 +22,21 @@ pub trait GuestPageTableTrait {
     fn new() -> HyperResult<Self>
     where
         Self: Sized;
+
     /// Map a guest physical frame starts from `gpa` to the host physical
     /// frame starts from of `hpa` with `flags`.
     fn map(
         &mut self,
         gpa: GuestPhysAddr,
         hpa: HostPhysAddr,
+        flags: MappingFlags,
+    ) -> HyperResult<()>;
+
+    fn map_region(
+        &mut self,
+        gpa: GuestPhysAddr,
+        hpa: HostPhysAddr,
+        size: usize,
         flags: MappingFlags,
     ) -> HyperResult<()>;
 

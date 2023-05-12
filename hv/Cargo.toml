@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 libax = { path = "../ulib/libax" }
+page_table_entry = { path = "../../arceos/crates/page_table_entry" }

@@ -4,9 +4,10 @@
 extern crate alloc;
 
 use libax::hv::{
-    self, GuestPageTable, GuestPageTableTrait, HyperCallMsg, HyperCraftHalImpl, PerCpu, VCpu,
-    VmCpus, VmExitInfo, VM,
+    self, GuestPageTable, GuestPageTableTrait, HyperCallMsg, HyperCraftHalImpl, PerCpu, Result,
+    VCpu, VmCpus, VmExitInfo, VM,
 };
+use page_table_entry::MappingFlags;
 
 /// guest code: print hello world!
 unsafe extern "C" fn hello_world() {
@@ -25,7 +26,8 @@ fn main() {
 
     // create vcpu
     // let vcpu = hv::create_vcpu(pcpu, 0x9000_0000, 0).unwrap();
-    let gpt = GuestPageTable::new().unwrap();
+    // let gpt = GuestPageTable::new().unwrap();
+    let gpt = setup_gpm().unwrap();
     let vcpu = pcpu
         .create_vcpu::<GuestPageTable>(0, 0x9000_0000, gpt)
         .unwrap();
@@ -38,4 +40,15 @@ fn main() {
     // vm run
     libax::info!("vm run cpu 0");
     vm.run(0);
+}
+
+pub fn setup_gpm() -> Result<GuestPageTable> {
+    let mut gpt = GuestPageTable::new()?;
+    gpt.map_region(
+        0x9000_0000,
+        0x9000_0000,
+        0x800_0000,
+        MappingFlags::READ | MappingFlags::WRITE | MappingFlags::EXECUTE | MappingFlags::USER,
+    )?;
+    Ok(gpt)
 }
