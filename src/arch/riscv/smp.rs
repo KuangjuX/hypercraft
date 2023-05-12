@@ -5,8 +5,8 @@ use alloc::{collections::VecDeque, vec::Vec};
 use spin::{Mutex, Once};
 
 use crate::{
-    memory::PAGE_SIZE_4K, GuestPhysAddr, GuestVirtAddr, HostPhysAddr, HostVirtAddr, HyperCraftHal,
-    HyperError, HyperResult, VCpu,
+    memory::PAGE_SIZE_4K, GuestPageTableTrait, GuestPhysAddr, GuestVirtAddr, HostPhysAddr,
+    HostVirtAddr, HyperCraftHal, HyperError, HyperResult, VCpu,
 };
 
 use super::detect::detect_h_extension;
@@ -77,17 +77,17 @@ impl<H: HyperCraftHal> PerCpu<H> {
     }
 
     /// Create a `Vcpu`, set the entry point to `entry` and bind this vcpu into the current CPU.
-    pub fn create_vcpu(
+    pub fn create_vcpu<G: GuestPageTableTrait>(
         &mut self,
         vcpu_id: usize,
         entry: GuestPhysAddr,
-        gpt_root: HostPhysAddr,
-    ) -> HyperResult<VCpu<H>> {
+        gpt: G,
+    ) -> HyperResult<VCpu<H, G>> {
         if !detect_h_extension() {
             Err(crate::HyperError::BadState)
         } else {
             self.vcpu_queue.lock().push_back(vcpu_id);
-            Ok(VCpu::<H>::new(vcpu_id, entry, gpt_root))
+            Ok(VCpu::<H, G>::new(vcpu_id, entry, gpt))
         }
     }
 

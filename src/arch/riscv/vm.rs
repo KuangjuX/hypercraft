@@ -1,12 +1,12 @@
-use crate::{HyperCraftHal, HyperResult, VmCpus};
+use crate::{GuestPageTableTrait, HyperCraftHal, HyperResult, VmCpus};
 
 /// A VM that is being run.
-pub struct VM<H: HyperCraftHal> {
-    vcpus: VmCpus<H>,
+pub struct VM<H: HyperCraftHal, G: GuestPageTableTrait> {
+    vcpus: VmCpus<H, G>,
 }
 
-impl<H: HyperCraftHal> VM<H> {
-    pub fn new(vcpus: VmCpus<H>) -> HyperResult<Self> {
+impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
+    pub fn new(vcpus: VmCpus<H, G>) -> HyperResult<Self> {
         Ok(Self { vcpus })
     }
 

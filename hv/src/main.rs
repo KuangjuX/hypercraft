@@ -3,7 +3,10 @@
 
 extern crate alloc;
 
-use libax::hv::{self, HyperCallMsg, HyperCraftHalImpl, PerCpu, VCpu, VmCpus, VmExitInfo, VM};
+use libax::hv::{
+    self, GuestPageTable, GuestPageTableTrait, HyperCallMsg, HyperCraftHalImpl, PerCpu, VCpu,
+    VmCpus, VmExitInfo, VM,
+};
 
 /// guest code: print hello world!
 unsafe extern "C" fn hello_world() {
@@ -22,7 +25,10 @@ fn main() {
 
     // create vcpu
     // let vcpu = hv::create_vcpu(pcpu, 0x9000_0000, 0).unwrap();
-    let vcpu = pcpu.create_vcpu(0, 0x9000_0000, 0).unwrap();
+    let gpt = GuestPageTable::new().unwrap();
+    let vcpu = pcpu
+        .create_vcpu::<GuestPageTable>(0, 0x9000_0000, gpt)
+        .unwrap();
     let mut vcpus = VmCpus::new();
 
     // add vcpu into vm

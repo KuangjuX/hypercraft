@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 use arrayvec::ArrayVec;
 use spin::Once;
 
-use crate::{HyperCraftHal, HyperError, HyperResult, VCpu, VM};
+use crate::{GuestPageTableTrait, HyperCraftHal, HyperError, HyperResult, VCpu, VM};
 
 /// The maximum number of CPUs we can support.
 pub const MAX_CPUS: usize = 8;
@@ -11,11 +11,11 @@ pub const VM_CPUS_MAX: usize = MAX_CPUS;
 
 /// The set of vCPUs in a VM.
 #[derive(Default)]
-pub struct VmCpus<H: HyperCraftHal> {
-    inner: [Once<VCpu<H>>; VM_CPUS_MAX],
+pub struct VmCpus<H: HyperCraftHal, G: GuestPageTableTrait> {
+    inner: [Once<VCpu<H, G>>; VM_CPUS_MAX],
 }
 
-impl<H: HyperCraftHal> VmCpus<H> {
+impl<H: HyperCraftHal, G: GuestPageTableTrait> VmCpus<H, G> {
     /// Creates a new vCPU tracking structure.
     pub fn new() -> Self {
         Self {
@@ -24,7 +24,7 @@ impl<H: HyperCraftHal> VmCpus<H> {
     }
 
     /// Adds the given vCPU to the set of vCPUs.
-    pub fn add_vcpu(&mut self, vcpu: VCpu<H>) -> HyperResult<()> {
+    pub fn add_vcpu(&mut self, vcpu: VCpu<H, G>) -> HyperResult<()> {
         let vcpu_id = vcpu.vcpu_id();
         let once_entry = self.inner.get(vcpu_id).ok_or(HyperError::BadState)?;
 
@@ -33,7 +33,7 @@ impl<H: HyperCraftHal> VmCpus<H> {
     }
 
     /// Returns a reference to the vCPU with `vcpu_id` if it exists.
-    pub fn get_vcpu(&mut self, vcpu_id: usize) -> HyperResult<&mut VCpu<H>> {
+    pub fn get_vcpu(&mut self, vcpu_id: usize) -> HyperResult<&mut VCpu<H, G>> {
         let vcpu = self
             .inner
             .get_mut(vcpu_id)
@@ -44,5 +44,5 @@ impl<H: HyperCraftHal> VmCpus<H> {
 }
 
 // Safety: Each VCpu is wrapped with a Mutex to provide safe concurrent access to VCpu.
-unsafe impl<H: HyperCraftHal> Sync for VmCpus<H> {}
-unsafe impl<H: HyperCraftHal> Send for VmCpus<H> {}
+unsafe impl<H: HyperCraftHal, G: GuestPageTableTrait> Sync for VmCpus<H, G> {}
+unsafe impl<H: HyperCraftHal, G: GuestPageTableTrait> Send for VmCpus<H, G> {}

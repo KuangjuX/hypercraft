@@ -2,7 +2,8 @@ use axhal::mem::PhysAddr;
 // use when creating vm
 use axhal::mem::{phys_to_virt, virt_to_phys};
 use axlog::debug;
-pub use hvruntime::HyperCraftHalImpl;
+pub use hvruntime::{GuestPageTable, HyperCraftHalImpl};
+pub use hypercraft::GuestPageTableTrait;
 use hypercraft::HyperCraftHal;
 pub use hypercraft::HyperError as Error;
 pub use hypercraft::HyperResult as Result;

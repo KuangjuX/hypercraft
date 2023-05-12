@@ -1,20 +1,25 @@
 #![no_std]
 #![deny(warnings)]
 #![allow(clippy::if_same_then_else)]
+#![feature(stmt_expr_attributes)]
 use axlog::ax_println;
 
 #[macro_use]
 extern crate axlog;
 
+mod gpm;
 mod hv;
 mod lang_items;
 mod trap;
 
+pub use gpm::GuestPageTable;
 pub use hv::HyperCraftHalImpl;
 
 extern "C" {
     fn ekernel();
 }
+
+extern crate alloc;
 
 struct LogIfImpl;
 
@@ -94,3 +99,5 @@ fn init_allocator() {
         (phys_to_virt(0x9000_0000.into()) - ekernel as usize).into(),
     );
 }
+
+// fn setup_gpm() {}

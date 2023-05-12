@@ -20,6 +20,7 @@ memoffset = { version = ">=0.6.5", features = ["unstable_const"] }
 arrayvec = { version = "0.7.2", default-features = false }
 spin = { version = "0.9", features = ["once", "rwlock", "spin_mutex"] }
 page_table = { path = "../arceos/crates/page_table"}
+page_table_entry = { path = "../arceos/crates/page_table_entry"}
 
 [target.'cfg(target_arch = "riscv64")'.dependencies]
 riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }

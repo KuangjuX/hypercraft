@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use core::arch::global_asm;
 use core::marker::PhantomData;
 use core::mem::size_of;
@@ -7,7 +8,8 @@ use memoffset::offset_of;
 use riscv::register::{hstatus, htinst, htval, scause, sstatus, stval};
 
 use crate::{
-    arch::sbi::SbiMessage, GuestPhysAddr, GuestVirtAddr, HostPhysAddr, HyperCraftHal, VmExitInfo,
+    arch::sbi::SbiMessage, GuestPageTableTrait, GuestPhysAddr, GuestVirtAddr, HostPhysAddr,
+    HyperCraftHal, VmExitInfo,
 };
 
 use super::regs::{GeneralPurposeRegisters, GprIndex};
@@ -207,15 +209,16 @@ pub enum VmCpuStatus {
 
 #[derive(Default)]
 /// A virtual CPU within a guest
-pub struct VCpu<H: HyperCraftHal> {
+pub struct VCpu<H: HyperCraftHal, G: GuestPageTableTrait> {
     vcpu_id: usize,
     regs: VmCpuRegisters,
+    gpt: G,
     // pub guest: Arc<Guest>,
     marker: PhantomData<H>,
 }
 
-impl<H: HyperCraftHal> VCpu<H> {
-    pub fn new(vcpu_id: usize, entry: GuestPhysAddr, gpt_root: HostPhysAddr) -> Self {
+impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
+    pub fn new(vcpu_id: usize, entry: GuestPhysAddr, gpt: G) -> Self {
         let mut regs = VmCpuRegisters::default();
         // Set hstatus
         let mut hstatus = hstatus::read();
@@ -229,14 +232,15 @@ impl<H: HyperCraftHal> VCpu<H> {
 
         // Set hgatp
         // TODO: Sv39 currently, but should be configurable
-        regs.virtual_hs_csrs.hgatp = 8usize << 60 | gpt_root >> 12;
+        // regs.virtual_hs_csrs.hgatp = 8usize << 60 | gpt_root >> 12;
+        regs.virtual_hs_csrs.hgatp = gpt.token();
 
         // Set entry
         regs.guest_regs.sepc = entry;
         Self {
             vcpu_id,
             regs,
-            // guest,
+            gpt,
             marker: PhantomData,
         }
     }
