@@ -20,8 +20,7 @@ pub use vcpu::VCpu;
 pub use vm::VM;
 pub use vmexit::VmExitInfo;
 
-use self::csrs::Hvip;
-pub use self::csrs::{traps, Hcounteren, Hedeleg, Hideleg, RiscvCsrTrait, Sie};
+use self::csrs::{traps, ReadWriteCsr, RiscvCsrTrait, CSR};
 
 pub fn init_hv_runtime() {
     unsafe {
@@ -32,8 +31,7 @@ pub fn init_hv_runtime() {
 /// Initialize (H)S-level CSRs to a reasonable state.
 unsafe fn setup_csrs() {
     // Delegate some synchronous exceptions.
-    let hedeleg = Hedeleg::new();
-    hedeleg.write_value(
+    CSR.hedeleg.write_value(
         traps::exception::INST_ADDR_MISALIGN
             | traps::exception::BREAKPOINT
             | traps::exception::ENV_CALL_FROM_U_OR_VU
@@ -43,28 +41,24 @@ unsafe fn setup_csrs() {
     );
 
     // Delegate all interupts.
-    let hideleg = Hideleg::new();
-    hideleg.write_value(
+    CSR.hideleg.write_value(
         traps::interrupt::VIRTUAL_SUPERVISOR_TIMER
             | traps::interrupt::VIRTUAL_SUPERVISOR_EXTERNAL
             | traps::interrupt::VIRTUAL_SUPERVISOR_SOFT,
     );
 
     // Clear all interrupts.
-    let hvip = Hvip::new();
-    hvip.read_and_clear_bits(
+    CSR.hvip.read_and_clear_bits(
         traps::interrupt::VIRTUAL_SUPERVISOR_TIMER
             | traps::interrupt::VIRTUAL_SUPERVISOR_EXTERNAL
             | traps::interrupt::VIRTUAL_SUPERVISOR_SOFT,
     );
 
     // clear all interrupts.
-    let hcounteren = Hcounteren::new();
-    hcounteren.write_value(0x0000_0000_ffff_ffff);
+    CSR.hcounteren.write_value(0xffff_ffff);
 
     // enable interrupt
-    let sie = Sie::new();
-    sie.read_and_set_bits(
+    CSR.sie.read_and_set_bits(
         traps::interrupt::SUPERVISOR_EXTERNAL
             | traps::interrupt::SUPERVISOR_SOFT
             | traps::interrupt::SUPERVISOR_TIMER,

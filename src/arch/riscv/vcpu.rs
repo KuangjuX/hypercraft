@@ -7,13 +7,12 @@ use memoffset::offset_of;
 // use alloc::sync::Arc;
 use riscv::register::{hstatus, htinst, htval, hvip, scause, sstatus, stval};
 
-use crate::arch::{traps, RiscvCsrTrait, Sie};
+use crate::arch::{traps, RiscvCsrTrait, CSR};
 use crate::{
     arch::sbi::SbiMessage, GuestPageTableTrait, GuestPhysAddr, GuestVirtAddr, HostPhysAddr,
     HyperCraftHal, VmExitInfo,
 };
 
-use super::csrs::Hvip;
 use super::regs::{GeneralPurposeRegisters, GprIndex};
 // use super::Guest;
 
@@ -273,17 +272,12 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
                 VmExitInfo::Ecall(sbi_msg)
             }
             Trap::Interrupt(Interrupt::SupervisorTimer) => {
-                // debug!("Supervisor timer interrupt");
                 // Enable guest timer interrupt
-                // let hvip = Hvip::new();
-                // hvip.read_and_set_bits(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
-                // // Disable host timer interrupt
-                // let sie = Sie::new();
-                // sie.read_and_clear_bits(traps::interrupt::SUPERVISOR_TIMER);
-                unsafe {
-                    riscv::register::hvip::set_vstip();
-                    riscv::register::sie::clear_stimer();
-                }
+                CSR.hvip
+                    .read_and_set_bits(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
+                // Clear host timer interrupt
+                CSR.sie
+                    .read_and_clear_bits(traps::interrupt::SUPERVISOR_TIMER);
                 // self.inject_interrupt();
                 VmExitInfo::InterruptEmulation
             }

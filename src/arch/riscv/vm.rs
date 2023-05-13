@@ -1,4 +1,4 @@
-use super::{csrs::Hvip, traps, HyperCallMsg, RiscvCsrTrait, Sie};
+use super::{traps, HyperCallMsg, RiscvCsrTrait, CSR};
 use crate::{GuestPageTableTrait, HyperCraftHal, HyperError, HyperResult, VmCpus, VmExitInfo};
 
 /// A VM that is being run.
@@ -24,16 +24,13 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
             if let VmExitInfo::Ecall(sbi_msg) = vm_exit_info {
                 if let Some(info) = sbi_msg {
                     if let HyperCallMsg::SetTimer(_) = info {
-                        // // Disable guest timer interrupt
-                        // let hvip = Hvip::new();
+                        // Clear guest timer interrupt
                         // hvip.read_and_clear_bits(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
-                        // //  Enable host timer interrupt
-                        // let sie = Sie::new();
-                        // sie.read_and_set_bits(traps::interrupt::SUPERVISOR_TIMER);
-                        unsafe {
-                            riscv::register::hvip::clear_vstip();
-                            riscv::register::sie::set_stimer();
-                        }
+                        CSR.hvip
+                            .read_and_clear_bits(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
+                        //  Enable host timer interrupt
+                        CSR.sie
+                            .read_and_set_bits(traps::interrupt::SUPERVISOR_TIMER);
                     }
                 }
             }

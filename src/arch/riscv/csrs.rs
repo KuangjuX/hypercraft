@@ -1,11 +1,28 @@
 use defs::*;
 use tock_registers::{register_bitfields, RegisterLongName};
 
-pub type Sie = ReadWriteCsr<sie::Register, { CSR_SIE }>;
-pub type Hedeleg = ReadWriteCsr<hedeleg::Register, { CSR_HEDELEG }>;
-pub type Hideleg = ReadWriteCsr<hideleg::Register, { CSR_HIDELEG }>;
-pub type Hcounteren = ReadWriteCsr<hcounteren::Register, { CSR_HCOUNTEREN }>;
-pub type Hvip = ReadWriteCsr<hvip::Register, { CSR_HVIP }>;
+// pub type Sie = ReadWriteCsr<sie::Register, { CSR_SIE }>;
+// pub type Hedeleg = ReadWriteCsr<hedeleg::Register, { CSR_HEDELEG }>;
+// pub type Hideleg = ReadWriteCsr<hideleg::Register, { CSR_HIDELEG }>;
+// pub type Hcounteren = ReadWriteCsr<hcounteren::Register, { CSR_HCOUNTEREN }>;
+// pub type Hvip = ReadWriteCsr<hvip::Register, { CSR_HVIP }>;
+
+pub struct CSR {
+    pub sie: ReadWriteCsr<sie::Register, CSR_SIE>,
+    pub hedeleg: ReadWriteCsr<hedeleg::Register, CSR_HEDELEG>,
+    pub hideleg: ReadWriteCsr<hideleg::Register, CSR_HIDELEG>,
+    pub hcounteren: ReadWriteCsr<hcounteren::Register, CSR_HCOUNTEREN>,
+    pub hvip: ReadWriteCsr<hvip::Register, CSR_HVIP>,
+}
+
+#[allow(clippy::identity_op, clippy::erasing_op)]
+pub const CSR: &CSR = &CSR {
+    sie: ReadWriteCsr::new(),
+    hedeleg: ReadWriteCsr::new(),
+    hideleg: ReadWriteCsr::new(),
+    hcounteren: ReadWriteCsr::new(),
+    hvip: ReadWriteCsr::new(),
+};
 
 /// Trait defining the possible operations on a RISC-V CSR.
 pub trait RiscvCsrTrait {
