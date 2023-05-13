@@ -47,5 +47,6 @@ pub unsafe fn setup_csrs() {
             | traps::interrupt::VIRTUAL_SUPERVISOR_SOFT,
     );
 
+    // clear all interrupts.
     hcounteren::write(0xffff_ffff);
 }

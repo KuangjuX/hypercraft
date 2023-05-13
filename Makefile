@@ -1,5 +1,5 @@
 TARGET		:= riscv64gc-unknown-none-elf
-MODE		:= debug
+MODE		:= release
 
 ARCH 		?= riscv64
 
@@ -18,8 +18,8 @@ QEMUPATH	?= ~/software/qemu/qemu-7.1.0/build/
 QEMU 		:= $(QEMUPATH)qemu-system-riscv64
 BOOTLOADER	:= bootloader/rustsbi-qemu.bin
 
-GUEST 		?= hello_world
-GUEST_ELF	?= target/$(TARGET)/$(MODE)/$(GUEST)
+# GUEST 		?= hello_world
+GUEST_ELF	?= guest/rCore-Tutorial-ch4/rCore-Tutorial-ch4
 GUEST_BIN	?= $(GUEST_ELF).bin
 
 PLATFORM 	?= qemu-virt-riscv
@@ -48,7 +48,7 @@ LD_SCRIPTS	:= hvruntime/src/linker.ld
 ARGS		:= -- -Clink-arg=-T$(LD_SCRIPTS) -Cforce-frame-pointers=yes
 
 $(APP_BIN):
-	LOG=$(LOG) cargo rustc --features "$(features-y)" --manifest-path=$(APP)/Cargo.toml $(ARGS)
+	LOG=$(LOG) cargo rustc --release --features "$(features-y)" --manifest-path=$(APP)/Cargo.toml $(ARGS)
 	$(OBJCOPY) $(APP_ELF) --strip-all -O binary $@
 
 $(GUEST_BIN):
