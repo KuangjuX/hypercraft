@@ -7,11 +7,13 @@ use memoffset::offset_of;
 // use alloc::sync::Arc;
 use riscv::register::{hstatus, htinst, htval, scause, sstatus, stval};
 
+use crate::arch::{traps, RiscvCsrTrait, Sie};
 use crate::{
     arch::sbi::SbiMessage, GuestPageTableTrait, GuestPhysAddr, GuestVirtAddr, HostPhysAddr,
     HyperCraftHal, VmExitInfo,
 };
 
+use super::csrs::Hvip;
 use super::regs::{GeneralPurposeRegisters, GprIndex};
 // use super::Guest;
 
@@ -264,11 +266,19 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
         regs.trap_csrs.htinst = htinst::read();
 
         let scause = scause::read();
-        use scause::{Exception, Trap};
+        use scause::{Exception, Interrupt, Trap};
         match scause.cause() {
             Trap::Exception(Exception::VirtualSupervisorEnvCall) => {
                 let sbi_msg = SbiMessage::from_regs(regs.guest_regs.gprs.a_regs()).ok();
                 VmExitInfo::Ecall(sbi_msg)
+            }
+            Trap::Interrupt(Interrupt::SupervisorTimer) => {
+                let hvip = Hvip::new();
+                hvip.write_value(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
+                let sie = Sie::new();
+                sie.read_and_clear_bits(traps::interrupt::SUPERVISOR_TIMER);
+                self.inject_interrupt();
+                VmExitInfo::InterruptEmulation
             }
             _ => {
                 let mut vstvec = 0;
@@ -303,5 +313,21 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
 
     pub fn vcpu_id(&self) -> usize {
         self.vcpu_id
+    }
+}
+
+//
+impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
+    fn inject_interrupt(&mut self) {
+        unsafe {
+            core::arch::asm!(
+                "csrw vsepc, {hyp_sepc}",
+                "csrw vscause, {hyp_scause}",
+                "csrr {guest_sepc}, vstvec",
+                hyp_sepc = in(reg) self.regs.guest_regs.sepc,
+                hyp_scause = in(reg) self.regs.trap_csrs.scause,
+                guest_sepc = out(reg) self.regs.guest_regs.sepc,
+            );
+        }
     }
 }

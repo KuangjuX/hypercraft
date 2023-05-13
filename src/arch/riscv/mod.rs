@@ -20,10 +20,17 @@ pub use vcpu::VCpu;
 pub use vm::VM;
 pub use vmexit::VmExitInfo;
 
-use self::csrs::{traps, Hcounteren, Hedeleg, Hideleg, RiscvCsrTrait, HVIP};
+use self::csrs::Hvip;
+pub use self::csrs::{traps, Hcounteren, Hedeleg, Hideleg, RiscvCsrTrait, Sie};
+
+pub fn init_hv_runtime() {
+    unsafe {
+        setup_csrs();
+    }
+}
 
 /// Initialize (H)S-level CSRs to a reasonable state.
-pub unsafe fn setup_csrs() {
+unsafe fn setup_csrs() {
     // Delegate some synchronous exceptions.
     let hedeleg = Hedeleg::new();
     hedeleg.write_value(
@@ -43,7 +50,7 @@ pub unsafe fn setup_csrs() {
             | traps::interrupt::VIRTUAL_SUPERVISOR_SOFT,
     );
 
-    let hvip = HVIP::new();
+    let hvip = Hvip::new();
     hvip.write_value(
         traps::interrupt::VIRTUAL_SUPERVISOR_TIMER
             | traps::interrupt::VIRTUAL_SUPERVISOR_EXTERNAL
@@ -53,4 +60,12 @@ pub unsafe fn setup_csrs() {
     // clear all interrupts.
     let hcounteren = Hcounteren::new();
     hcounteren.write_value(0xffff_ffff_ffff_ffff);
+
+    // enable interrupt
+    let sie = Sie::new();
+    sie.write_value(
+        traps::interrupt::SUPERVISOR_EXTERNAL
+            | traps::interrupt::SUPERVISOR_SOFT
+            | traps::interrupt::SUPERVISOR_TIMER,
+    );
 }

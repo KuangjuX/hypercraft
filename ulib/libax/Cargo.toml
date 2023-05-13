@@ -32,7 +32,7 @@ alloc = ["dep:axalloc", "hvruntime/alloc", "axio/alloc"]
 paging = ["hvruntime/paging"]
 
 # Interrupts
-# irq = ["axruntime/irq"]
+irq = ["hvruntime/irq"]
 
 # Multi-task
 # multitask = ["axtask", "axruntime/multitask", "axsync/multitask"]

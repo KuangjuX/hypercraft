@@ -1,6 +1,6 @@
 use axalloc::global_allocator;
 use axhal::mem::PAGE_SIZE_4K;
-use hypercraft::{GuestPageTableTrait, HostPhysAddr, HyperCraftHal, VmExitInfo};
+use hypercraft::{GuestPageTableTrait, HostPhysAddr, HyperCallMsg, HyperCraftHal, VmExitInfo};
 
 pub struct HyperCraftHalImpl;
 
@@ -25,17 +25,21 @@ impl HyperCraftHal for HyperCraftHalImpl {
             VmExitInfo::Ecall(sbi_msg) => {
                 if let Some(sbi_msg) = sbi_msg {
                     match sbi_msg {
-                        hypercraft::HyperCallMsg::PutChar(c) => {
+                        HyperCallMsg::PutChar(c) => {
                             axhal::console::putchar(c as u8);
                             vcpu.advance_pc(4);
                         }
-                        hypercraft::HyperCallMsg::Reset(_) => axhal::misc::terminate(),
+                        HyperCallMsg::SetTimer(timer) => {
+                            axhal::time::set_oneshot_timer(timer as u64)
+                        }
+                        HyperCallMsg::Reset(_) => axhal::misc::terminate(),
                         _ => todo!(),
                     }
                 } else {
                     panic!()
                 }
             }
+            VmExitInfo::InterruptEmulation => {}
             _ => todo!(),
         }
     }

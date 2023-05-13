@@ -32,6 +32,7 @@ else ifeq ($(APP), hv)
 	features-y  += libax/alloc
 	features-y  += libax/hv
 	features-y  += libax/paging
+	features-y  += libax/irq
 endif
 
 

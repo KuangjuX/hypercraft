@@ -6,13 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# acreos models
 axlog = {path = "../../arceos/modules/axlog"}
 axalloc = {path = "../../arceos/modules/axalloc", optional = true}
 axhal   = {path = "../../arceos/modules/axhal"}
 axconfig = { path = "../../arceos/modules/axconfig" }
+# arceos crates
 crate_interface = { path = "../../arceos/crates/crate_interface" }
 page_table = { path = "../../arceos/crates/page_table" }
 page_table_entry = { path = "../../arceos/crates/page_table_entry" }
+# vmm hal crate
 hypercraft = { path = "../"}
 
 
@@ -22,4 +25,5 @@ default = []
 smp = []
 alloc = ["dep:axalloc"]
 paging = ["alloc", "axhal/paging"]
+irq = ["axhal/irq"]
 

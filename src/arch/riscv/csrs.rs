@@ -1,10 +1,11 @@
 use defs::*;
 use tock_registers::{register_bitfields, RegisterLongName};
 
+pub type Sie = ReadWriteCsr<sie::Register, { CSR_SIE }>;
 pub type Hedeleg = ReadWriteCsr<hedeleg::Register, { CSR_HEDELEG }>;
 pub type Hideleg = ReadWriteCsr<hideleg::Register, { CSR_HIDELEG }>;
 pub type Hcounteren = ReadWriteCsr<hcounteren::Register, { CSR_HCOUNTEREN }>;
-pub type HVIP = ReadWriteCsr<hvip::Register, { CSR_HVIP }>;
+pub type Hvip = ReadWriteCsr<hvip::Register, { CSR_HVIP }>;
 
 /// Trait defining the possible operations on a RISC-V CSR.
 pub trait RiscvCsrTrait {
@@ -82,6 +83,39 @@ impl<R: RegisterLongName, const V: u16> RiscvCsrTrait for ReadWriteCsr<R, V> {
 
 pub mod defs {
     use tock_registers::register_bitfields;
+    pub const CSR_SSTATUS: u16 = 0x100;
+    pub const CSR_SEDELEG: u16 = 0x102;
+    pub const CSR_SIDELEG: u16 = 0x103;
+    pub const CSR_SIE: u16 = 0x104;
+    pub const CSR_STVEC: u16 = 0x105;
+    pub const CSR_SCOUNTEREN: u16 = 0x106;
+    pub const CSR_SENVCFG: u16 = 0x10a;
+    pub const CSR_SSCRATCH: u16 = 0x140;
+    pub const CSR_SEPC: u16 = 0x141;
+    pub const CSR_SCAUSE: u16 = 0x142;
+    pub const CSR_STVAL: u16 = 0x143;
+    pub const CSR_SIP: u16 = 0x144;
+    pub const CSR_STIMECMP: u16 = 0x14d;
+    pub const CSR_SISELECT: u16 = 0x150;
+    pub const CSR_SIREG: u16 = 0x151;
+    pub const CSR_STOPEI: u16 = 0x15c;
+    pub const CSR_SATP: u16 = 0x180;
+    pub const CSR_STOPI: u16 = 0xdb0;
+    pub const CSR_SCONTEXT: u16 = 0x5a8;
+    pub const CSR_VSSTATUS: u16 = 0x200;
+    pub const CSR_VSIE: u16 = 0x204;
+    pub const CSR_VSTVEC: u16 = 0x205;
+    pub const CSR_VSSCRATCH: u16 = 0x240;
+    pub const CSR_VSEPC: u16 = 0x241;
+    pub const CSR_VSCAUSE: u16 = 0x242;
+    pub const CSR_VSTVAL: u16 = 0x243;
+    pub const CSR_VSIP: u16 = 0x244;
+    pub const CSR_VSTIMECMP: u16 = 0x24d;
+    pub const CSR_VSISELECT: u16 = 0x250;
+    pub const CSR_VSIREG: u16 = 0x251;
+    pub const CSR_VSTOPEI: u16 = 0x25c;
+    pub const CSR_VSATP: u16 = 0x280;
+    pub const CSR_VSTOPI: u16 = 0xeb0;
     pub const CSR_HSTATUS: u16 = 0x600;
     pub const CSR_HEDELEG: u16 = 0x602;
     pub const CSR_HIDELEG: u16 = 0x603;
@@ -114,6 +148,15 @@ pub mod defs {
         instr_page_fault OFFSET(12) NUMBITS(1) [],
         load_page_fault OFFSET(13) NUMBITS(1) [],
         store_page_fault OFFSET(15) NUMBITS(1) [],
+    ]
+    ];
+
+    // Supervisor interrupt enable register.
+    register_bitfields![u64,
+    pub sie [
+        ssoft OFFSET(1) NUMBITS(1) [],
+        stimer OFFSET(5) NUMBITS(1) [],
+        sext OFFSET(9) NUMBITS(1) [],
     ]
     ];
 

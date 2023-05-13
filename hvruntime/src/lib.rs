@@ -14,6 +14,7 @@ mod trap;
 
 pub use gpm::GuestPageTable;
 pub use hv::HyperCraftHalImpl;
+use hypercraft::init_hv_runtime;
 
 extern "C" {
     fn ekernel();
@@ -74,6 +75,7 @@ extern "C" {
 
 #[no_mangle]
 pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
+    init_hv_runtime();
     ax_println!("rust_main! cpu_id={}, dtb={:#x}", cpu_id, dtb);
 
     axlog::init();
