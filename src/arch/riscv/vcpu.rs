@@ -5,7 +5,7 @@ use core::mem::size_of;
 use memoffset::offset_of;
 
 // use alloc::sync::Arc;
-use riscv::register::{hstatus, htinst, htval, scause, sstatus, stval};
+use riscv::register::{hstatus, htinst, htval, hvip, scause, sstatus, stval};
 
 use crate::arch::{traps, RiscvCsrTrait, Sie};
 use crate::{
@@ -273,11 +273,18 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
                 VmExitInfo::Ecall(sbi_msg)
             }
             Trap::Interrupt(Interrupt::SupervisorTimer) => {
-                let hvip = Hvip::new();
-                hvip.write_value(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
-                let sie = Sie::new();
-                sie.read_and_clear_bits(traps::interrupt::SUPERVISOR_TIMER);
-                self.inject_interrupt();
+                // debug!("Supervisor timer interrupt");
+                // Enable guest timer interrupt
+                // let hvip = Hvip::new();
+                // hvip.read_and_set_bits(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
+                // // Disable host timer interrupt
+                // let sie = Sie::new();
+                // sie.read_and_clear_bits(traps::interrupt::SUPERVISOR_TIMER);
+                unsafe {
+                    riscv::register::hvip::set_vstip();
+                    riscv::register::sie::clear_stimer();
+                }
+                // self.inject_interrupt();
                 VmExitInfo::InterruptEmulation
             }
             _ => {
@@ -318,7 +325,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
 
 //
 impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
-    fn inject_interrupt(&mut self) {
+    fn inject_exception(&mut self) {
         unsafe {
             core::arch::asm!(
                 "csrw vsepc, {hyp_sepc}",

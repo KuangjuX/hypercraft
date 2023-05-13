@@ -27,3 +27,7 @@ alloc = ["dep:axalloc"]
 paging = ["alloc", "axhal/paging"]
 irq = ["axhal/irq"]
 
+
+[target.'cfg(target_arch = "riscv64")'.dependencies]
+sbi-rt = "0.0.2"
+

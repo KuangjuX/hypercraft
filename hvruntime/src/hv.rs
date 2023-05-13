@@ -30,7 +30,10 @@ impl HyperCraftHal for HyperCraftHalImpl {
                             vcpu.advance_pc(4);
                         }
                         HyperCallMsg::SetTimer(timer) => {
-                            axhal::time::set_oneshot_timer(timer as u64)
+                            // axhal::time::set_oneshot_timer(timer as u64)
+                            // debug!("set timer: {}", timer);
+                            sbi_rt::set_timer(timer as u64);
+                            vcpu.advance_pc(4);
                         }
                         HyperCallMsg::Reset(_) => axhal::misc::terminate(),
                         _ => todo!(),

@@ -50,8 +50,9 @@ unsafe fn setup_csrs() {
             | traps::interrupt::VIRTUAL_SUPERVISOR_SOFT,
     );
 
+    // Clear all interrupts.
     let hvip = Hvip::new();
-    hvip.write_value(
+    hvip.read_and_clear_bits(
         traps::interrupt::VIRTUAL_SUPERVISOR_TIMER
             | traps::interrupt::VIRTUAL_SUPERVISOR_EXTERNAL
             | traps::interrupt::VIRTUAL_SUPERVISOR_SOFT,
@@ -59,11 +60,11 @@ unsafe fn setup_csrs() {
 
     // clear all interrupts.
     let hcounteren = Hcounteren::new();
-    hcounteren.write_value(0xffff_ffff_ffff_ffff);
+    hcounteren.write_value(0x0000_0000_ffff_ffff);
 
     // enable interrupt
     let sie = Sie::new();
-    sie.write_value(
+    sie.read_and_set_bits(
         traps::interrupt::SUPERVISOR_EXTERNAL
             | traps::interrupt::SUPERVISOR_SOFT
             | traps::interrupt::SUPERVISOR_TIMER,

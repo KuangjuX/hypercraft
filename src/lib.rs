@@ -2,6 +2,7 @@
 #![allow(
     clippy::upper_case_acronyms,
     clippy::single_component_path_imports,
+    clippy::collapsible_match,
     dead_code,
     non_upper_case_globals,
     unused_imports,
