@@ -4,7 +4,8 @@
     clippy::single_component_path_imports,
     dead_code,
     non_upper_case_globals,
-    unused_imports
+    unused_imports,
+    unused_assignments
 )]
 #![deny(warnings)]
 #![feature(naked_functions, asm_const, negative_impls)]

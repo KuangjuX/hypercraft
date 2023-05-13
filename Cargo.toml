@@ -19,6 +19,8 @@ log = "0.4.17"
 memoffset = { version = ">=0.6.5", features = ["unstable_const"] }
 arrayvec = { version = "0.7.2", default-features = false }
 spin = { version = "0.9", features = ["once", "rwlock", "spin_mutex"] }
+tock-registers = "0.8.1"
+# arceos crates
 page_table = { path = "../arceos/crates/page_table"}
 page_table_entry = { path = "../arceos/crates/page_table_entry"}
 

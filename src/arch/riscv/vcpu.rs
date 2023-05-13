@@ -232,7 +232,6 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
 
         // Set hgatp
         // TODO: Sv39 currently, but should be configurable
-        // regs.virtual_hs_csrs.hgatp = 8usize << 60 | gpt_root >> 12;
         regs.virtual_hs_csrs.hgatp = gpt.token();
         unsafe {
             core::arch::asm!(
@@ -272,7 +271,17 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
                 VmExitInfo::Ecall(sbi_msg)
             }
             _ => {
-                panic!("Unhandled trap: {:?}", scause.cause());
+                let mut vstvec = 0;
+                unsafe {
+                    core::arch::asm!("csrr {vstvec}, vstvec", vstvec = out(reg) vstvec);
+                }
+                panic!(
+                    "Unhandled trap: {:?}, sepc: {:#x}, stval: {:#x}, vstcvec: {:#x}",
+                    scause.cause(),
+                    regs.guest_regs.sepc,
+                    regs.trap_csrs.stval,
+                    vstvec
+                );
             }
         }
     }

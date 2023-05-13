@@ -15,7 +15,7 @@ unsafe extern "C" fn hello_world() {
 }
 
 #[no_mangle]
-fn main() {
+fn main(hart_id: usize) {
     libax::println!("Hello, hv!");
 
     // boot cpu
@@ -38,7 +38,7 @@ fn main() {
     let mut vm = VM::new(vcpus).unwrap();
 
     // vm run
-    libax::info!("vm run cpu 0");
+    libax::info!("vm run cpu{}", hart_id);
     vm.run(0);
 }
 

@@ -19,8 +19,8 @@ QEMU 		:= $(QEMUPATH)qemu-system-riscv64
 BOOTLOADER	:= bootloader/rustsbi-qemu.bin
 
 GUEST 		?= hello_world
-GUEST_ELF	:= target/$(TARGET)/$(MODE)/$(GUEST)
-GUEST_BIN	:= $(GUEST_ELF).bin
+GUEST_ELF	?= target/$(TARGET)/$(MODE)/$(GUEST)
+GUEST_BIN	?= $(GUEST_ELF).bin
 
 PLATFORM 	?= qemu-virt-riscv
 

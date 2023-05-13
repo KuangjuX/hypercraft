@@ -154,6 +154,7 @@ _restore_csrs:
     csrr  t1, sepc
     sd    t1, ({guest_sepc})(a0)
 
+
     /* Restore hypervisor GPRs. */
     ld   ra, ({hyp_ra})(a0)
     ld   gp, ({hyp_gp})(a0)

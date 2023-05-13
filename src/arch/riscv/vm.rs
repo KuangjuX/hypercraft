@@ -1,5 +1,7 @@
 use crate::{GuestPageTableTrait, HyperCraftHal, HyperResult, VmCpus};
 
+use super::setup_csrs;
+
 /// A VM that is being run.
 pub struct VM<H: HyperCraftHal, G: GuestPageTableTrait> {
     vcpus: VmCpus<H, G>,
@@ -12,7 +14,12 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
 
     /// Run the host VM's vCPU with ID `vcpu_id`. Does not return.
     pub fn run(&mut self, vcpu_id: usize) {
+        unsafe {
+            setup_csrs();
+        }
         let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
+
+        // Set htimedelta for ALL VCPU'f of the VM.
         loop {
             let vm_exit_info = vcpu.run();
 
@@ -20,3 +27,6 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
         }
     }
 }
+
+// Privaie function
+impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {}

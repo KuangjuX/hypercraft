@@ -69,7 +69,7 @@ fn is_init_ok() -> bool {
 }
 
 extern "C" {
-    fn main();
+    fn main(hart_id: usize);
 }
 
 #[no_mangle]
@@ -86,7 +86,7 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
     }
 
     unsafe {
-        main();
+        main(cpu_id);
     }
     panic!("main returned");
 }
@@ -99,5 +99,3 @@ fn init_allocator() {
         (phys_to_virt(0x9000_0000.into()) - ekernel as usize).into(),
     );
 }
-
-// fn setup_gpm() {}
