@@ -59,7 +59,7 @@ qemu: $(APP_BIN) $(GUEST_BIN)
 	$(QEMU) $(QEMUOPTS)
 
 clean:
-	rm $(APP_BIN) $(APP_ELF) $(GUEST_ELF) $(GUEST_BIN)
+	rm $(APP_BIN) $(APP_ELF)
 
 debug: $(APP_BIN)
 	@tmux new-session -d \
