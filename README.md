@@ -30,6 +30,7 @@ make qemu GUEST=hello_world ARCH=riscv64 APP=hv
     - [ ] IOMMU Support
     - [ ] Device Emulate
 - Interrupt Virtualization
+    - [x] Timer Interrupt Enable
     - [ ] PLIC Emulate && Interrupt Inject
     - [ ] AIA Supported
 
