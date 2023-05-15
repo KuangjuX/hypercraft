@@ -11,11 +11,11 @@ pub const VM_CPUS_MAX: usize = MAX_CPUS;
 
 /// The set of vCPUs in a VM.
 #[derive(Default)]
-pub struct VmCpus<H: HyperCraftHal, G: GuestPageTableTrait> {
-    inner: [Once<VCpu<H, G>>; VM_CPUS_MAX],
+pub struct VmCpus<H: HyperCraftHal> {
+    inner: [Once<VCpu<H>>; VM_CPUS_MAX],
 }
 
-impl<H: HyperCraftHal, G: GuestPageTableTrait> VmCpus<H, G> {
+impl<H: HyperCraftHal> VmCpus<H> {
     /// Creates a new vCPU tracking structure.
     pub fn new() -> Self {
         Self {
@@ -24,7 +24,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VmCpus<H, G> {
     }
 
     /// Adds the given vCPU to the set of vCPUs.
-    pub fn add_vcpu(&mut self, vcpu: VCpu<H, G>) -> HyperResult<()> {
+    pub fn add_vcpu(&mut self, vcpu: VCpu<H>) -> HyperResult<()> {
         let vcpu_id = vcpu.vcpu_id();
         let once_entry = self.inner.get(vcpu_id).ok_or(HyperError::BadState)?;
 
@@ -33,7 +33,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VmCpus<H, G> {
     }
 
     /// Returns a reference to the vCPU with `vcpu_id` if it exists.
-    pub fn get_vcpu(&mut self, vcpu_id: usize) -> HyperResult<&mut VCpu<H, G>> {
+    pub fn get_vcpu(&mut self, vcpu_id: usize) -> HyperResult<&mut VCpu<H>> {
         let vcpu = self
             .inner
             .get_mut(vcpu_id)
@@ -44,5 +44,5 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VmCpus<H, G> {
 }
 
 // Safety: Each VCpu is wrapped with a Mutex to provide safe concurrent access to VCpu.
-unsafe impl<H: HyperCraftHal, G: GuestPageTableTrait> Sync for VmCpus<H, G> {}
-unsafe impl<H: HyperCraftHal, G: GuestPageTableTrait> Send for VmCpus<H, G> {}
+unsafe impl<H: HyperCraftHal> Sync for VmCpus<H> {}
+unsafe impl<H: HyperCraftHal> Send for VmCpus<H> {}

@@ -28,14 +28,12 @@ fn main(hart_id: usize) {
     // let vcpu = hv::create_vcpu(pcpu, 0x9000_0000, 0).unwrap();
     // let gpt = GuestPageTable::new().unwrap();
     let gpt = setup_gpm().unwrap();
-    let vcpu = pcpu
-        .create_vcpu::<GuestPageTable>(0, 0x9000_0000, gpt)
-        .unwrap();
+    let vcpu = pcpu.create_vcpu(0, 0x9000_0000).unwrap();
     let mut vcpus = VmCpus::new();
 
     // add vcpu into vm
     vcpus.add_vcpu(vcpu).unwrap();
-    let mut vm = VM::new(vcpus).unwrap();
+    let mut vm: VM<HyperCraftHalImpl, GuestPageTable> = VM::new(vcpus, gpt).unwrap();
 
     // vm run
     libax::info!("vm run cpu{}", hart_id);

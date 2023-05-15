@@ -210,16 +210,16 @@ pub enum VmCpuStatus {
 
 #[derive(Default)]
 /// A virtual CPU within a guest
-pub struct VCpu<H: HyperCraftHal, G: GuestPageTableTrait> {
+pub struct VCpu<H: HyperCraftHal> {
     vcpu_id: usize,
     regs: VmCpuRegisters,
-    gpt: G,
+    // gpt: G,
     // pub guest: Arc<Guest>,
     marker: PhantomData<H>,
 }
 
-impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
-    pub fn new(vcpu_id: usize, entry: GuestPhysAddr, gpt: G) -> Self {
+impl<H: HyperCraftHal> VCpu<H> {
+    pub fn new(vcpu_id: usize, entry: GuestPhysAddr) -> Self {
         let mut regs = VmCpuRegisters::default();
         // Set hstatus
         let mut hstatus = hstatus::read();
@@ -231,22 +231,25 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
         sstatus.set_spp(sstatus::SPP::Supervisor);
         regs.guest_regs.sstatus = sstatus.bits();
 
-        // Set hgatp
-        // TODO: Sv39 currently, but should be configurable
-        regs.virtual_hs_csrs.hgatp = gpt.token();
-        unsafe {
-            core::arch::asm!(
-                "csrw hgatp, {hgatp}",
-                hgatp = in(reg) regs.virtual_hs_csrs.hgatp,
-            );
-        }
         // Set entry
         regs.guest_regs.sepc = entry;
         Self {
             vcpu_id,
             regs,
-            gpt,
+            // gpt,
             marker: PhantomData,
+        }
+    }
+
+    pub fn init_page_map(&mut self, token: usize) {
+        // Set hgatp
+        // TODO: Sv39 currently, but should be configurable
+        self.regs.virtual_hs_csrs.hgatp = token;
+        unsafe {
+            core::arch::asm!(
+                "csrw hgatp, {hgatp}",
+                hgatp = in(reg) self.regs.virtual_hs_csrs.hgatp,
+            );
         }
     }
 
@@ -317,8 +320,10 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
     }
 }
 
-//
-impl<H: HyperCraftHal, G: GuestPageTableTrait> VCpu<H, G> {
+// Private methods implements
+impl<H: HyperCraftHal> VCpu<H> {
+    /// Delivers the given exception to the vCPU, setting its register state
+    /// to handle the trap the next time it is run.
     fn inject_exception(&mut self) {
         unsafe {
             core::arch::asm!(

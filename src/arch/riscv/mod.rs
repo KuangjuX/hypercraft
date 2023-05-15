@@ -1,5 +1,6 @@
 mod csrs;
 mod detect;
+mod devices;
 mod ept;
 mod guest;
 mod regs;

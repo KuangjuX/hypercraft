@@ -1,14 +1,25 @@
 use super::{traps, HyperCallMsg, RiscvCsrTrait, CSR};
-use crate::{GuestPageTableTrait, HyperCraftHal, HyperError, HyperResult, VmCpus, VmExitInfo};
+use crate::{
+    vcpus::VM_CPUS_MAX, GuestPageTableTrait, HyperCraftHal, HyperError, HyperResult, VmCpus,
+    VmExitInfo,
+};
 
 /// A VM that is being run.
 pub struct VM<H: HyperCraftHal, G: GuestPageTableTrait> {
-    vcpus: VmCpus<H, G>,
+    vcpus: VmCpus<H>,
+    gpt: G,
 }
 
 impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
-    pub fn new(vcpus: VmCpus<H, G>) -> HyperResult<Self> {
-        Ok(Self { vcpus })
+    pub fn new(vcpus: VmCpus<H>, gpt: G) -> HyperResult<Self> {
+        Ok(Self { vcpus, gpt })
+    }
+
+    pub fn init_vcpus(&mut self) {
+        for vcpu_id in 0..VM_CPUS_MAX {
+            let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
+            vcpu.init_page_map(self.gpt.token());
+        }
     }
 
     /// Run the host VM's vCPU with ID `vcpu_id`. Does not return.

@@ -6,6 +6,25 @@ use dbcn::DebugConsoleFunction;
 use sbi_spec;
 use srst::ResetFunction;
 
+/// The values returned from an SBI function call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SbiReturn {
+    /// The error code(0 for success)
+    pub error_code: i64,
+    /// The return value if the operation is successful
+    pub return_value: i64,
+}
+
+/// SBI return value conventions
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SbiReturnTyoe {
+    /// Legacy(v0.1) extensions return a single value in A0, usually with the convention that 0
+    /// is success and < 0 is an implementation defined error code.
+    Legacy(u64),
+    /// Modern extensions use the standard error code values enumerated above.
+    Standard(SbiReturn),
+}
+
 /// SBI Message used to invoke the specfified SBI extension in the firmware.
 #[derive(Clone, Copy, Debug)]
 pub enum SbiMessage {

@@ -1,6 +1,6 @@
 use axalloc::global_allocator;
 use axhal::mem::PAGE_SIZE_4K;
-use hypercraft::{GuestPageTableTrait, HostPhysAddr, HyperCallMsg, HyperCraftHal, VmExitInfo};
+use hypercraft::{HostPhysAddr, HyperCallMsg, HyperCraftHal, VmExitInfo};
 
 pub struct HyperCraftHalImpl;
 
@@ -17,27 +17,19 @@ impl HyperCraftHal for HyperCraftHalImpl {
     }
 
     // implement by app or runtime
-    fn vmexit_handler<G: GuestPageTableTrait>(
-        vcpu: &mut hypercraft::VCpu<Self, G>,
-        vm_exit_info: hypercraft::VmExitInfo,
-    ) {
+    fn vmexit_handler(vcpu: &mut hypercraft::VCpu<Self>, vm_exit_info: hypercraft::VmExitInfo) {
         match vm_exit_info {
             VmExitInfo::Ecall(sbi_msg) => {
                 if let Some(sbi_msg) = sbi_msg {
                     match sbi_msg {
-                        HyperCallMsg::PutChar(c) => {
-                            axhal::console::putchar(c as u8);
-                            vcpu.advance_pc(4);
-                        }
+                        HyperCallMsg::PutChar(c) => axhal::console::putchar(c as u8),
                         HyperCallMsg::SetTimer(timer) => {
-                            // axhal::time::set_oneshot_timer(timer as u64)
-                            // debug!("set timer: {}", timer);
                             sbi_rt::set_timer(timer as u64);
-                            vcpu.advance_pc(4);
                         }
                         HyperCallMsg::Reset(_) => axhal::misc::terminate(),
                         _ => todo!(),
                     }
+                    vcpu.advance_pc(4);
                 } else {
                     panic!()
                 }
