@@ -24,6 +24,6 @@ pub trait HyperCraftHal: Sized {
     fn alloc_pages(num_pages: usize) -> Option<HostPhysAddr>;
     /// Gives back the allocated pages starts from `pa` to the page allocator.
     fn dealloc_pages(pa: HostPhysAddr, num_pages: usize);
-    /// VM-Exit handler
-    fn vmexit_handler(vcpu: &mut crate::VCpu<Self>, vm_exit_info: VmExitInfo);
+    // /// VM-Exit handler
+    // fn vmexit_handler(vcpu: &mut crate::VCpu<Self>, vm_exit_info: VmExitInfo);
 }

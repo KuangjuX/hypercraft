@@ -22,6 +22,8 @@ pub use vm::VM;
 pub use vmexit::VmExitInfo;
 
 use self::csrs::{traps, ReadWriteCsr, RiscvCsrTrait, CSR};
+use self::devices::plic::PlicState;
+use self::vcpu::VmCpuRegisters;
 
 pub fn init_hv_runtime() {
     unsafe {

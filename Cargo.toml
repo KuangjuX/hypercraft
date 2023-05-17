@@ -26,5 +26,6 @@ page_table_entry = { path = "../arceos/crates/page_table_entry"}
 
 [target.'cfg(target_arch = "riscv64")'.dependencies]
 riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }
+riscv-decode = { git = "https://github.com/KuangjuX/riscv-decode.git" }
 sbi-spec = { version = "0.0.6", features = ["legacy"] }
 sbi-rt = "0.0.2"

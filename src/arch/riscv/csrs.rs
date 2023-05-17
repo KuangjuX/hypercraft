@@ -146,7 +146,7 @@ pub mod defs {
     pub const CSR_HGEIP: u16 = 0xe12;
 
     // Hypervisor exception delegation register.
-    register_bitfields![u64,
+    register_bitfields![usize,
     pub hedeleg [
         instr_misaligned OFFSET(0) NUMBITS(1) [],
         instr_fault OFFSET(1) NUMBITS(1) [],
@@ -164,7 +164,7 @@ pub mod defs {
     ];
 
     // Supervisor interrupt enable register.
-    register_bitfields![u64,
+    register_bitfields![usize,
     pub sie [
         ssoft OFFSET(1) NUMBITS(1) [],
         stimer OFFSET(5) NUMBITS(1) [],
@@ -172,8 +172,40 @@ pub mod defs {
     ]
     ];
 
+    // Hypervisor status register.
+    register_bitfields![usize,
+    pub hstatus [
+        // VS mode endianness control.
+        vsbe OFFSET(6) NUMBITS(1) [],
+        // A guest virtual address was written to stval as a result of the trap.
+        gva OFFSET(6) NUMBITS(1) [],
+        // Virtualization mode at time of trap.
+        spv OFFSET(7) NUMBITS(1) [],
+        // Privilege level the virtual hart was executing before entering HS-mode.
+        spvp OFFSET(8) NUMBITS(1) [
+            User = 0,
+            Supervisor = 1,
+        ],
+        // Allow hypervisor instructions in U-mode.
+        hu OFFSET(9) NUMBITS(1) [],
+        // Selects the guest external interrupt source for VS external interrupts.
+        vgein OFFSET(12) NUMBITS(6) [],
+        // Trap on SFENCE, SINVAL, or changes to vsatp.
+        vtvm OFFSET(20) NUMBITS(1) [],
+        // Trap on WFI timeout.
+        vtw OFFSET(21) NUMBITS(1) [],
+        // Trap SRET instruction.
+        vtsr OFFSET(22) NUMBITS(1) [],
+        // Native base integer ISA width for VS-mode.
+        vsxl OFFSET(32) NUMBITS(2) [
+            Xlen32 = 1,
+            Xlen64 = 2,
+        ],
+    ]
+    ];
+
     // Hypervisor interrupt delegation register.
-    register_bitfields![u64,
+    register_bitfields![usize,
     pub hideleg [
         vssoft OFFSET(2) NUMBITS(1) [],
         vstimer OFFSET(6) NUMBITS(1) [],
@@ -182,7 +214,7 @@ pub mod defs {
     ];
 
     // Hypervisor interrupt enable register.
-    register_bitfields![u64,
+    register_bitfields![usize,
     pub hie [
         vssoft OFFSET(2) NUMBITS(1) [],
         vstimer OFFSET(6) NUMBITS(1) [],
@@ -192,7 +224,7 @@ pub mod defs {
     ];
 
     // VS-mode counter availability control.
-    register_bitfields![u64,
+    register_bitfields![usize,
     pub hcounteren [
         cycle OFFSET(0) NUMBITS(1) [],
         time OFFSET(1) NUMBITS(1) [],
@@ -202,7 +234,7 @@ pub mod defs {
     ];
 
     // Hypervisor virtual interrupt pending.
-    register_bitfields![u64,
+    register_bitfields![usize,
     pub hvip [
         vssoft OFFSET(2) NUMBITS(1) [],
         vstimer OFFSET(6) NUMBITS(1) [],

@@ -7,6 +7,7 @@ use memoffset::offset_of;
 // use alloc::sync::Arc;
 use riscv::register::{hstatus, htinst, htval, hvip, scause, sstatus, stval};
 
+use crate::arch::vmexit::PrivilegeLevel;
 use crate::arch::{traps, RiscvCsrTrait, CSR};
 use crate::{
     arch::sbi::SbiMessage, GuestPageTableTrait, GuestPhysAddr, GuestVirtAddr, HostPhysAddr,
@@ -81,7 +82,7 @@ pub struct VmCpuTrapState {
 /// between VMs.
 #[derive(Default)]
 #[repr(C)]
-struct VmCpuRegisters {
+pub struct VmCpuRegisters {
     // CPU state that's shared between our's and the guest's execution environment. Saved/restored
     // when entering/exiting a VM.
     hyp_regs: HypervisorCpuState,
@@ -253,6 +254,29 @@ impl<H: HyperCraftHal> VCpu<H> {
         }
     }
 
+    /// Restore vCPU registers from the guest's GPRs
+    pub fn restore_gprs(&mut self, gprs: &GeneralPurposeRegisters) {
+        for index in 0..32 {
+            self.regs.guest_regs.gprs.set_reg(
+                GprIndex::from_raw(index).unwrap(),
+                gprs.reg(GprIndex::from_raw(index).unwrap()),
+            )
+        }
+    }
+
+    /// Save vCPU registers to the guest's GPRs
+    pub fn save_gprs(&self, gprs: &mut GeneralPurposeRegisters) {
+        for index in 0..32 {
+            gprs.set_reg(
+                GprIndex::from_raw(index).unwrap(),
+                self.regs
+                    .guest_regs
+                    .gprs
+                    .reg(GprIndex::from_raw(index).unwrap()),
+            );
+        }
+    }
+
     /// Runs this vCPU until traps.
     pub fn run(&mut self) -> VmExitInfo {
         let regs = &mut self.regs;
@@ -283,6 +307,22 @@ impl<H: HyperCraftHal> VCpu<H> {
                     .read_and_clear_bits(traps::interrupt::SUPERVISOR_TIMER);
                 // self.inject_interrupt();
                 VmExitInfo::InterruptEmulation
+            }
+            Trap::Exception(Exception::LoadGuestPageFault)
+            | Trap::Exception(Exception::StoreGuestPageFault) => {
+                let fault_addr = regs.trap_csrs.htval << 2 | regs.trap_csrs.stval & 0x3;
+                VmExitInfo::PageFault {
+                    fault_addr,
+                    // Note that this address is not necessarily guest virtual as the guest may or
+                    // may not have 1st-stage translation enabled in VSATP. We still use GuestVirtAddr
+                    // here though to distinguish it from addresses (e.g. in HTVAL, or passed via a
+                    // TEECALL) which are exclusively guest-physical. Furthermore we only access guest
+                    // instructions via the HLVX instruction, which will take the VSATP translation
+                    // mode into account.
+                    falut_pc: regs.guest_regs.sepc,
+                    inst: regs.trap_csrs.htinst as u32,
+                    priv_level: PrivilegeLevel::from_hstatus(regs.guest_regs.hstatus),
+                }
             }
             _ => {
                 let mut vstvec = 0;
@@ -317,6 +357,10 @@ impl<H: HyperCraftHal> VCpu<H> {
 
     pub fn vcpu_id(&self) -> usize {
         self.vcpu_id
+    }
+
+    pub fn regs(&mut self) -> &mut VmCpuRegisters {
+        &mut self.regs
     }
 }
 

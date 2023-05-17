@@ -1,18 +1,34 @@
-use super::{traps, HyperCallMsg, RiscvCsrTrait, CSR};
-use crate::{
-    vcpus::VM_CPUS_MAX, GuestPageTableTrait, HyperCraftHal, HyperError, HyperResult, VmCpus,
-    VmExitInfo,
+use super::{
+    devices::plic::{PlicState, MAX_CONTEXTS},
+    regs::GeneralPurposeRegisters,
+    traps,
+    vcpu::{self, VmCpuRegisters},
+    vm_pages::VmPages,
+    HyperCallMsg, RiscvCsrTrait, CSR,
 };
+use crate::{
+    vcpus::VM_CPUS_MAX, GprIndex, GuestPageTableTrait, GuestPhysAddr, GuestVirtAddr, HyperCraftHal,
+    HyperError, HyperResult, VCpu, VmCpus, VmExitInfo,
+};
+use riscv_decode::Instruction;
 
 /// A VM that is being run.
 pub struct VM<H: HyperCraftHal, G: GuestPageTableTrait> {
     vcpus: VmCpus<H>,
     gpt: G,
+    vm_pages: VmPages,
+    plic: PlicState,
 }
 
 impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
+    #[allow(clippy::default_constructed_unit_structs)]
     pub fn new(vcpus: VmCpus<H>, gpt: G) -> HyperResult<Self> {
-        Ok(Self { vcpus, gpt })
+        Ok(Self {
+            vcpus,
+            gpt,
+            vm_pages: VmPages::default(),
+            plic: PlicState::new(0x0c00_0000),
+        })
     }
 
     pub fn init_vcpus(&mut self) {
@@ -22,32 +38,121 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
         }
     }
 
+    #[allow(unused_variables, deprecated)]
     /// Run the host VM's vCPU with ID `vcpu_id`. Does not return.
     pub fn run(&mut self, vcpu_id: usize) {
-        let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
-
-        // Set htimedelta for ALL VCPU'f of the VM.
+        let mut vm_exit_info: VmExitInfo;
+        let mut gprs = GeneralPurposeRegisters::default();
         loop {
-            let vm_exit_info = vcpu.run();
+            let mut advance_pc = false;
+            {
+                let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
+                vm_exit_info = vcpu.run();
+                vcpu.save_gprs(&mut gprs);
+            }
 
-            H::vmexit_handler(vcpu, vm_exit_info);
-
-            if let VmExitInfo::Ecall(sbi_msg) = vm_exit_info {
-                if let Some(info) = sbi_msg {
-                    if let HyperCallMsg::SetTimer(_) = info {
-                        // Clear guest timer interrupt
-                        // hvip.read_and_clear_bits(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
-                        CSR.hvip
-                            .read_and_clear_bits(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
-                        //  Enable host timer interrupt
-                        CSR.sie
-                            .read_and_set_bits(traps::interrupt::SUPERVISOR_TIMER);
+            match vm_exit_info {
+                VmExitInfo::Ecall(sbi_msg) => {
+                    if let Some(sbi_msg) = sbi_msg {
+                        match sbi_msg {
+                            HyperCallMsg::PutChar(c) => {
+                                sbi_rt::legacy::console_putchar(c);
+                            }
+                            HyperCallMsg::SetTimer(timer) => {
+                                sbi_rt::set_timer(timer as u64);
+                                // Clear guest timer interrupt
+                                CSR.hvip.read_and_clear_bits(
+                                    traps::interrupt::VIRTUAL_SUPERVISOR_TIMER,
+                                );
+                                //  Enable host timer interrupt
+                                CSR.sie
+                                    .read_and_set_bits(traps::interrupt::SUPERVISOR_TIMER);
+                            }
+                            HyperCallMsg::Reset(_) => {
+                                sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::SystemFailure);
+                            }
+                            _ => todo!(),
+                        }
+                        // vcpu.advance_pc(4);
+                        advance_pc = true;
+                    } else {
+                        panic!()
                     }
+                }
+                VmExitInfo::PageFault {
+                    fault_addr,
+                    falut_pc,
+                    inst,
+                    priv_level,
+                } => match priv_level {
+                    super::vmexit::PrivilegeLevel::Supervisor => {
+                        let _ = self
+                            .handle_page_fault(falut_pc, inst, fault_addr, &mut gprs)
+                            .map_err(|err| {
+                                panic!("Page fault at {:x} with error {:?}", falut_pc, err)
+                            });
+                        advance_pc = true;
+                    }
+                    super::vmexit::PrivilegeLevel::User => {}
+                },
+                _ => {}
+            }
+
+            {
+                let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
+                vcpu.restore_gprs(&gprs);
+                if advance_pc {
+                    vcpu.advance_pc(4);
                 }
             }
         }
     }
 }
 
-// Privaie function
-impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {}
+// Privaie methods implementation
+impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
+    fn handle_page_fault(
+        &mut self,
+        inst_addr: GuestVirtAddr,
+        inst: u32,
+        fault_addr: GuestPhysAddr,
+        gprs: &mut GeneralPurposeRegisters,
+    ) -> HyperResult<()> {
+        //  plic
+        if fault_addr >= self.plic.base() && fault_addr < self.plic.base() + 0x0400_0000 {
+            self.handle_plic(inst_addr, inst, fault_addr, gprs)
+        } else {
+            Err(HyperError::PageFault)
+        }
+    }
+
+    #[allow(clippy::needless_late_init)]
+    fn handle_plic(
+        &mut self,
+        inst_addr: GuestVirtAddr,
+        inst: u32,
+        fault_addr: GuestPhysAddr,
+        gprs: &mut GeneralPurposeRegisters,
+    ) -> HyperResult<()> {
+        let decode_inst: Instruction;
+        if inst == 0 {
+            // If hinst does not provide information about trap,
+            // we must read the instruction from guest's memory maunally.
+            decode_inst = self.vm_pages.fetch_guest_instruction(inst_addr)?;
+        } else {
+            decode_inst = riscv_decode::decode(inst).map_err(|_| HyperError::DecodeError)?;
+        }
+        match decode_inst {
+            Instruction::Sw(i) => {
+                let val = gprs.reg(GprIndex::from_raw(i.rs2()).unwrap()) as u32;
+                self.plic.write_u32(fault_addr, val)
+            }
+            Instruction::Lw(i) => {
+                let val = self.plic.read_u32(fault_addr);
+                gprs.set_reg(GprIndex::from_raw(i.rd()).unwrap(), val as usize)
+            }
+            _ => return Err(HyperError::InvalidInstruction),
+        }
+        Ok(())
+    }
+}

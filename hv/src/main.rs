@@ -3,16 +3,14 @@
 
 extern crate alloc;
 
+use dtb::MachineMeta;
 use libax::hv::{
     self, GuestPageTable, GuestPageTableTrait, HyperCallMsg, HyperCraftHalImpl, PerCpu, Result,
     VCpu, VmCpus, VmExitInfo, VM,
 };
 use page_table_entry::MappingFlags;
 
-/// guest code: print hello world!
-unsafe extern "C" fn hello_world() {
-    libax::println!("Hello guest!");
-}
+mod dtb;
 
 #[no_mangle]
 fn main(hart_id: usize) {
@@ -25,10 +23,8 @@ fn main(hart_id: usize) {
     let pcpu = PerCpu::<HyperCraftHalImpl>::this_cpu();
 
     // create vcpu
-    // let vcpu = hv::create_vcpu(pcpu, 0x9000_0000, 0).unwrap();
-    // let gpt = GuestPageTable::new().unwrap();
-    let gpt = setup_gpm().unwrap();
-    let vcpu = pcpu.create_vcpu(0, 0x9000_0000).unwrap();
+    let gpt = setup_gpm(0x9000_0000).unwrap();
+    let vcpu = pcpu.create_vcpu(0, 0x9020_0000).unwrap();
     let mut vcpus = VmCpus::new();
 
     // add vcpu into vm
@@ -40,11 +36,55 @@ fn main(hart_id: usize) {
     vm.run(0);
 }
 
-pub fn setup_gpm() -> Result<GuestPageTable> {
+pub fn setup_gpm(dtb: usize) -> Result<GuestPageTable> {
     let mut gpt = GuestPageTable::new()?;
+    let meta = MachineMeta::parse(dtb);
+    if let Some(test) = meta.test_finisher_address {
+        gpt.map_region(
+            test.base_address,
+            test.base_address,
+            test.size,
+            MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
+        )?;
+    }
+    for virtio in meta.virtio.iter() {
+        gpt.map_region(
+            virtio.base_address,
+            virtio.base_address,
+            virtio.size,
+            MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
+        )?;
+    }
+
+    if let Some(uart) = meta.uart {
+        gpt.map_region(
+            uart.base_address,
+            uart.base_address,
+            0x1000,
+            MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
+        )?;
+    }
+
+    if let Some(clint) = meta.clint {
+        gpt.map_region(
+            clint.base_address,
+            clint.base_address,
+            clint.size,
+            MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
+        )?;
+    }
+
+    if let Some(plic) = meta.plic {
+        gpt.map_region(
+            plic.base_address,
+            plic.base_address,
+            plic.size,
+            MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
+        )?;
+    }
     gpt.map_region(
-        0x9000_0000,
-        0x9000_0000,
+        0x9020_0000,
+        0x9020_0000,
         0x800_0000,
         MappingFlags::READ | MappingFlags::WRITE | MappingFlags::EXECUTE | MappingFlags::USER,
     )?;

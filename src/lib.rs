@@ -43,7 +43,11 @@ pub enum HyperError {
     NotSupported,
     NoMemory,
     InvalidParam,
+    InvalidInstruction,
     OutOfRange,
     BadState,
     NotFound,
+    FetchFault,
+    PageFault,
+    DecodeError,
 }
