@@ -55,7 +55,7 @@ pub struct VmPages;
 
 impl VmPages {
     /// Fetches and decodes the instruction at `pc` in the guest's virtual address.
-    pub fn fetch_guest_instruction(&self, pc: GuestPhysAddr) -> HyperResult<Instruction> {
+    pub fn fetch_guest_instruction(&self, pc: GuestPhysAddr) -> HyperResult<u32> {
         let mut raw_inst = 0u32;
         // Safety: _fetch_guest_instruction internally detects and handles an invalid guest virtual
         // address in `pc' and will only write up to 4 bytes to `raw_inst`.
@@ -63,7 +63,7 @@ impl VmPages {
         if ret < 0 {
             return Err(HyperError::FetchFault);
         }
-        let inst = riscv_decode::decode(raw_inst).map_err(|_| HyperError::DecodeError)?;
-        Ok(inst)
+        // let inst = riscv_decode::decode(raw_inst).map_err(|_| HyperError::DecodeError)?;
+        Ok(raw_inst)
     }
 }

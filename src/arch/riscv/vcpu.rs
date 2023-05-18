@@ -225,11 +225,11 @@ impl<H: HyperCraftHal> VCpu<H> {
     pub fn new(vcpu_id: usize, entry: GuestPhysAddr) -> Self {
         let mut regs = VmCpuRegisters::default();
         // Set hstatus
-        // CSR.hstatus.read_and_set_bits(1 << 7 | 1 << 8);
         let mut hstatus = LocalRegisterCopy::<usize, hstatus::Register>::new(
             riscv::register::hstatus::read().bits(),
         );
         hstatus.modify(hstatus::spv::Supervisor);
+        // Set SPVP bit in order to accessing VS-mode memory from HS-mode.
         hstatus.modify(hstatus::spvp::Supervisor);
         CSR.hstatus.write_value(hstatus.get());
         regs.guest_regs.hstatus = hstatus.get();

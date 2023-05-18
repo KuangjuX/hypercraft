@@ -33,7 +33,7 @@ impl PlicState {
     }
 
     pub fn read_u32(&mut self, addr: usize) -> u32 {
-        debug!("PLIC read: {:#x}", addr);
+        // debug!("PLIC read: {:#x}", addr);
         let offset = addr.wrapping_sub(self.base);
         if (0x20_0000..0x20_0000 + 0x1000 * MAX_CONTEXTS).contains(&offset) {
             // threshold/claim/complete
@@ -48,7 +48,7 @@ impl PlicState {
     }
 
     pub fn write_u32(&mut self, addr: usize, val: u32) {
-        debug!("PLIC write: {:#x} -> {:#x}", addr, val);
+        // debug!("PLIC write: {:#x} -> {:#x}", addr, val);
         let offset = addr.wrapping_sub(self.base);
         // threshold/claim/complete
         if (0x200000..0x200000 + 0x1000 * MAX_CONTEXTS).contains(&offset) {
@@ -70,6 +70,8 @@ impl PlicState {
                 CSR.hvip
                     .read_and_clear_bits(traps::interrupt::VIRTUAL_SUPERVISOR_EXTERNAL);
             }
+        } else {
+            todo!()
         }
     }
 }

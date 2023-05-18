@@ -41,6 +41,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
         let mut vm_exit_info: VmExitInfo;
         let mut gprs = GeneralPurposeRegisters::default();
         loop {
+            let mut len = 4;
             let mut advance_pc = false;
             {
                 let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
@@ -74,7 +75,6 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                             }
                             _ => todo!(),
                         }
-                        // vcpu.advance_pc(4);
                         advance_pc = true;
                     } else {
                         panic!()
@@ -87,13 +87,16 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                     priv_level,
                 } => match priv_level {
                     super::vmexit::PrivilegeLevel::Supervisor => {
-                        if let Err(err) =
-                            self.handle_page_fault(falut_pc, inst, fault_addr, &mut gprs)
-                        {
-                            panic!(
-                                "Page fault at {:#x} addr@{:#x} with error {:?}",
-                                falut_pc, fault_addr, err
-                            )
+                        match self.handle_page_fault(falut_pc, inst, fault_addr, &mut gprs) {
+                            Ok(inst_len) => {
+                                len = inst_len;
+                            }
+                            Err(err) => {
+                                panic!(
+                                    "Page fault at {:#x} addr@{:#x} with error {:?}",
+                                    falut_pc, fault_addr, err
+                                )
+                            }
                         }
                         advance_pc = true;
                     }
@@ -115,7 +118,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                 let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
                 vcpu.restore_gprs(&gprs);
                 if advance_pc {
-                    vcpu.advance_pc(4);
+                    vcpu.advance_pc(len);
                 }
             }
         }
@@ -130,7 +133,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
         inst: u32,
         fault_addr: GuestPhysAddr,
         gprs: &mut GeneralPurposeRegisters,
-    ) -> HyperResult<()> {
+    ) -> HyperResult<usize> {
         //  plic
         if fault_addr >= self.plic.base() && fault_addr < self.plic.base() + 0x0400_0000 {
             self.handle_plic(inst_addr, inst, fault_addr, gprs)
@@ -143,18 +146,24 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
     fn handle_plic(
         &mut self,
         inst_addr: GuestVirtAddr,
-        inst: u32,
+        mut inst: u32,
         fault_addr: GuestPhysAddr,
         gprs: &mut GeneralPurposeRegisters,
-    ) -> HyperResult<()> {
-        let decode_inst: Instruction;
+    ) -> HyperResult<usize> {
         if inst == 0 {
             // If hinst does not provide information about trap,
             // we must read the instruction from guest's memory maunally.
-            decode_inst = self.vm_pages.fetch_guest_instruction(inst_addr)?;
-        } else {
-            decode_inst = riscv_decode::decode(inst).map_err(|_| HyperError::DecodeError)?;
+            inst = self.vm_pages.fetch_guest_instruction(inst_addr)?;
         }
+        let i1 = inst as u16;
+        let len = riscv_decode::instruction_length(i1);
+        let inst = match len {
+            2 => i1 as u32,
+            4 => inst,
+            _ => unreachable!(),
+        };
+        // assert!(len == 4);
+        let decode_inst = riscv_decode::decode(inst).map_err(|_| HyperError::DecodeError)?;
         match decode_inst {
             Instruction::Sw(i) => {
                 let val = gprs.reg(GprIndex::from_raw(i.rs2()).unwrap()) as u32;
@@ -166,7 +175,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
             }
             _ => return Err(HyperError::InvalidInstruction),
         }
-        Ok(())
+        Ok(len)
     }
 
     fn handle_irq(&mut self) {
