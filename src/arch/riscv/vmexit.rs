@@ -45,5 +45,6 @@ pub enum VmExitInfo {
     HostInterruot(Interrupt),
     /// An interrupt for the running vCPU that can't be delegated and must be injected. The
     /// interrupt is injected the vCPU is run.
-    InterruptEmulation,
+    TimerInterruptEmulation,
+    ExternalInterruptEmulation,
 }

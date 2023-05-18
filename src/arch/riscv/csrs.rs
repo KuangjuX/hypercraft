@@ -1,9 +1,12 @@
 use defs::*;
+use tock_registers::fields::Field;
+use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::{register_bitfields, RegisterLongName};
 
 /// Define each registers of hypervisor using.
 pub struct CSR {
     pub sie: ReadWriteCsr<sie::Register, CSR_SIE>,
+    pub hstatus: ReadWriteCsr<hstatus::Register, CSR_HSTATUS>,
     pub hedeleg: ReadWriteCsr<hedeleg::Register, CSR_HEDELEG>,
     pub hideleg: ReadWriteCsr<hideleg::Register, CSR_HIDELEG>,
     pub hcounteren: ReadWriteCsr<hcounteren::Register, CSR_HCOUNTEREN>,
@@ -13,6 +16,7 @@ pub struct CSR {
 #[allow(clippy::identity_op, clippy::erasing_op)]
 pub const CSR: &CSR = &CSR {
     sie: ReadWriteCsr::new(),
+    hstatus: ReadWriteCsr::new(),
     hedeleg: ReadWriteCsr::new(),
     hideleg: ReadWriteCsr::new(),
     hcounteren: ReadWriteCsr::new(),
@@ -90,6 +94,26 @@ impl<R: RegisterLongName, const V: u16> RiscvCsrTrait for ReadWriteCsr<R, V> {
             core::arch::asm!("csrrc {rd}, {csr}, {rs}", rd = out(reg) r, csr = const V, rs = in(reg) bitmask);
         }
         r
+    }
+}
+
+// The Readable and Writeable traits aren't object-safe so unfortunately we can't implement them
+// for RiscvCsrInterface.
+impl<R: RegisterLongName, const V: u16> Readable for ReadWriteCsr<R, V> {
+    type T = usize;
+    type R = R;
+
+    fn get(&self) -> usize {
+        self.get_value()
+    }
+}
+
+impl<R: RegisterLongName, const V: u16> Writeable for ReadWriteCsr<R, V> {
+    type T = usize;
+    type R = R;
+
+    fn set(&self, val_to_set: usize) {
+        self.write_value(val_to_set);
     }
 }
 
@@ -180,7 +204,10 @@ pub mod defs {
         // A guest virtual address was written to stval as a result of the trap.
         gva OFFSET(6) NUMBITS(1) [],
         // Virtualization mode at time of trap.
-        spv OFFSET(7) NUMBITS(1) [],
+        spv OFFSET(7) NUMBITS(1) [
+            User = 0,
+            Supervisor = 1,
+        ],
         // Privilege level the virtual hart was executing before entering HS-mode.
         spvp OFFSET(8) NUMBITS(1) [
             User = 0,

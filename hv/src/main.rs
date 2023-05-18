@@ -30,9 +30,14 @@ fn main(hart_id: usize) {
     // add vcpu into vm
     vcpus.add_vcpu(vcpu).unwrap();
     let mut vm: VM<HyperCraftHalImpl, GuestPageTable> = VM::new(vcpus, gpt).unwrap();
+    vm.init_vcpu(0);
 
     // vm run
     libax::info!("vm run cpu{}", hart_id);
+    unsafe {
+        let i = core::ptr::read(0x9020c514 as *const u32);
+        libax::info!("i = {:#x}", i);
+    }
     vm.run(0);
 }
 
@@ -78,14 +83,14 @@ pub fn setup_gpm(dtb: usize) -> Result<GuestPageTable> {
         gpt.map_region(
             plic.base_address,
             plic.base_address,
-            plic.size,
+            0x20_0000,
             MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
         )?;
     }
     gpt.map_region(
-        0x9020_0000,
-        0x9020_0000,
-        0x800_0000,
+        meta.physical_memory_offset,
+        meta.physical_memory_offset,
+        meta.physical_memory_size,
         MappingFlags::READ | MappingFlags::WRITE | MappingFlags::EXECUTE | MappingFlags::USER,
     )?;
     Ok(gpt)

@@ -3,9 +3,10 @@ use core::arch::global_asm;
 use core::marker::PhantomData;
 use core::mem::size_of;
 use memoffset::offset_of;
+use tock_registers::LocalRegisterCopy;
 
 // use alloc::sync::Arc;
-use riscv::register::{hstatus, htinst, htval, hvip, scause, sstatus, stval};
+use riscv::register::{htinst, htval, hvip, scause, sstatus, stval};
 
 use crate::arch::vmexit::PrivilegeLevel;
 use crate::arch::{traps, RiscvCsrTrait, CSR};
@@ -14,6 +15,7 @@ use crate::{
     HyperCraftHal, VmExitInfo,
 };
 
+use super::csrs::defs::hstatus;
 use super::regs::{GeneralPurposeRegisters, GprIndex};
 // use super::Guest;
 
@@ -223,9 +225,14 @@ impl<H: HyperCraftHal> VCpu<H> {
     pub fn new(vcpu_id: usize, entry: GuestPhysAddr) -> Self {
         let mut regs = VmCpuRegisters::default();
         // Set hstatus
-        let mut hstatus = hstatus::read();
-        hstatus.set_spv(true);
-        regs.guest_regs.hstatus = hstatus.bits();
+        // CSR.hstatus.read_and_set_bits(1 << 7 | 1 << 8);
+        let mut hstatus = LocalRegisterCopy::<usize, hstatus::Register>::new(
+            riscv::register::hstatus::read().bits(),
+        );
+        hstatus.modify(hstatus::spv::Supervisor);
+        hstatus.modify(hstatus::spvp::Supervisor);
+        CSR.hstatus.write_value(hstatus.get());
+        regs.guest_regs.hstatus = hstatus.get();
 
         // Set sstatus
         let mut sstatus = sstatus::read();
@@ -298,15 +305,9 @@ impl<H: HyperCraftHal> VCpu<H> {
                 let sbi_msg = SbiMessage::from_regs(regs.guest_regs.gprs.a_regs()).ok();
                 VmExitInfo::Ecall(sbi_msg)
             }
-            Trap::Interrupt(Interrupt::SupervisorTimer) => {
-                // Enable guest timer interrupt
-                CSR.hvip
-                    .read_and_set_bits(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
-                // Clear host timer interrupt
-                CSR.sie
-                    .read_and_clear_bits(traps::interrupt::SUPERVISOR_TIMER);
-                // self.inject_interrupt();
-                VmExitInfo::InterruptEmulation
+            Trap::Interrupt(Interrupt::SupervisorTimer) => VmExitInfo::TimerInterruptEmulation,
+            Trap::Interrupt(Interrupt::SupervisorExternal) => {
+                VmExitInfo::ExternalInterruptEmulation
             }
             Trap::Exception(Exception::LoadGuestPageFault)
             | Trap::Exception(Exception::StoreGuestPageFault) => {
@@ -330,7 +331,7 @@ impl<H: HyperCraftHal> VCpu<H> {
                     core::arch::asm!("csrr {vstvec}, vstvec", vstvec = out(reg) vstvec);
                 }
                 panic!(
-                    "Unhandled trap: {:?}, sepc: {:#x}, stval: {:#x}, vstcvec: {:#x}",
+                    "Unhandled trap: {:?}, sepc: {:#x}, stval: {:#x}, vstvec: {:#x}",
                     scause.cause(),
                     regs.guest_regs.sepc,
                     regs.trap_csrs.stval,

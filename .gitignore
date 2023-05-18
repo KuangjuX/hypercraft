@@ -5,4 +5,5 @@ rust-analyzer.toml
 *.dtb
 *.dtc
 hello_world.S
+hv.S
 *.txt

@@ -21,21 +21,18 @@ pub struct VM<H: HyperCraftHal, G: GuestPageTableTrait> {
 }
 
 impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
-    #[allow(clippy::default_constructed_unit_structs)]
     pub fn new(vcpus: VmCpus<H>, gpt: G) -> HyperResult<Self> {
         Ok(Self {
             vcpus,
             gpt,
             vm_pages: VmPages::default(),
-            plic: PlicState::new(0x0c00_0000),
+            plic: PlicState::new(0xC00_0000),
         })
     }
 
-    pub fn init_vcpus(&mut self) {
-        for vcpu_id in 0..VM_CPUS_MAX {
-            let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
-            vcpu.init_page_map(self.gpt.token());
-        }
+    pub fn init_vcpu(&mut self, vcpu_id: usize) {
+        let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
+        vcpu.init_page_map(self.gpt.token());
     }
 
     #[allow(unused_variables, deprecated)]
@@ -55,6 +52,10 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                 VmExitInfo::Ecall(sbi_msg) => {
                     if let Some(sbi_msg) = sbi_msg {
                         match sbi_msg {
+                            HyperCallMsg::GetChar => {
+                                let c = sbi_rt::legacy::console_getchar();
+                                gprs.set_reg(GprIndex::A1, c);
+                            }
                             HyperCallMsg::PutChar(c) => {
                                 sbi_rt::legacy::console_putchar(c);
                             }
@@ -86,15 +87,27 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                     priv_level,
                 } => match priv_level {
                     super::vmexit::PrivilegeLevel::Supervisor => {
-                        let _ = self
-                            .handle_page_fault(falut_pc, inst, fault_addr, &mut gprs)
-                            .map_err(|err| {
-                                panic!("Page fault at {:x} with error {:?}", falut_pc, err)
-                            });
+                        if let Err(err) =
+                            self.handle_page_fault(falut_pc, inst, fault_addr, &mut gprs)
+                        {
+                            panic!(
+                                "Page fault at {:#x} addr@{:#x} with error {:?}",
+                                falut_pc, fault_addr, err
+                            )
+                        }
                         advance_pc = true;
                     }
                     super::vmexit::PrivilegeLevel::User => {}
                 },
+                VmExitInfo::TimerInterruptEmulation => {
+                    // Enable guest timer interrupt
+                    CSR.hvip
+                        .read_and_set_bits(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
+                    // Clear host timer interrupt
+                    CSR.sie
+                        .read_and_clear_bits(traps::interrupt::SUPERVISOR_TIMER);
+                }
+                VmExitInfo::ExternalInterruptEmulation => self.handle_irq(),
                 _ => {}
             }
 
@@ -154,5 +167,16 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
             _ => return Err(HyperError::InvalidInstruction),
         }
         Ok(())
+    }
+
+    fn handle_irq(&mut self) {
+        let context_id = 1;
+        let claim_and_complete_addr = self.plic.base() + 0x0020_0004 + 0x1000 * context_id;
+        let irq = unsafe { core::ptr::read_volatile(claim_and_complete_addr as *const u32) };
+        assert!(irq != 0);
+        self.plic.claim_complete[context_id] = irq;
+
+        CSR.hvip
+            .read_and_set_bits(traps::interrupt::VIRTUAL_SUPERVISOR_EXTERNAL);
     }
 }

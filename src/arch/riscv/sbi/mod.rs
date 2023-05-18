@@ -28,6 +28,8 @@ pub enum SbiReturnTyoe {
 /// SBI Message used to invoke the specfified SBI extension in the firmware.
 #[derive(Clone, Copy, Debug)]
 pub enum SbiMessage {
+    /// The legacy GetChar extension.
+    GetChar,
     /// The legacy PutChar extension.
     PutChar(usize),
     /// The SetTimer Extension
@@ -45,10 +47,14 @@ impl SbiMessage {
     pub fn from_regs(args: &[usize]) -> HyperResult<Self> {
         match args[7] {
             sbi_spec::legacy::LEGACY_CONSOLE_PUTCHAR => Ok(SbiMessage::PutChar(args[0])),
-            // sbi_spec::legacy::LEGACY_SET_TIMER => Ok(SbiMessage::SetTimer(args[0])),
+            sbi_spec::legacy::LEGACY_CONSOLE_GETCHAR => Ok(SbiMessage::GetChar),
+            sbi_spec::legacy::LEGACY_SET_TIMER => Ok(SbiMessage::SetTimer(args[0])),
             sbi_spec::time::EID_TIME => Ok(SbiMessage::SetTimer(args[0])),
             sbi_spec::srst::EID_SRST => ResetFunction::from_regs(args).map(SbiMessage::Reset),
-            _ => Err(HyperError::NotFound),
+            _ => {
+                error!("args: {:?}", args);
+                Err(HyperError::NotFound)
+            }
         }
     }
 }
