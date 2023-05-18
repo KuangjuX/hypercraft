@@ -27,7 +27,7 @@ mod vcpus;
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
 pub use arch::{
-    init_hv_runtime, GprIndex, Guest, HyperCallMsg, NestedPageTable, PerCpu, VCpu, VmExitInfo, VM,
+    init_hv_runtime, GprIndex, HyperCallMsg, NestedPageTable, PerCpu, VCpu, VmExitInfo, VM,
 };
 
 pub use hal::HyperCraftHal;

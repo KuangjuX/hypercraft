@@ -2,7 +2,6 @@ mod csrs;
 mod detect;
 mod devices;
 mod ept;
-mod guest;
 mod regs;
 mod sbi;
 mod smp;
@@ -13,7 +12,6 @@ mod vmexit;
 
 use detect::detect_h_extension;
 pub use ept::NestedPageTable;
-pub use guest::Guest;
 pub use regs::GprIndex;
 pub use sbi::SbiMessage as HyperCallMsg;
 pub use smp::PerCpu;
@@ -40,7 +38,8 @@ unsafe fn setup_csrs() {
             | traps::exception::ENV_CALL_FROM_U_OR_VU
             | traps::exception::INST_PAGE_FAULT
             | traps::exception::LOAD_PAGE_FAULT
-            | traps::exception::STORE_PAGE_FAULT,
+            | traps::exception::STORE_PAGE_FAULT
+            | traps::exception::ILLEGAL_INST,
     );
 
     // Delegate all interupts.
