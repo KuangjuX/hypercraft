@@ -26,13 +26,17 @@ make qemu GUEST=hello_world ARCH=riscv64 APP=hv
     - [x] Nested Page Table Support
     - [ ] Multi-level Page Table Supportd
 - I/O Virtualization
-    - [ ] Device Passthrought Supportd
+    - [x] Device Passthrought Supportd
     - [ ] IOMMU Support
     - [ ] Device Emulate
 - Interrupt Virtualization
     - [x] Timer Interrupt Enable
-    - [ ] PLIC Emulate && Interrupt Inject
+    - [x] PLIC Emulate && Interrupt Inject
     - [ ] AIA Supported
+- System Supported
+    - [x] rCore-Tutorial-v3
+    - [ ] Linux
+    - [ ] Arceos
 
 
 ## Relevant Issues
