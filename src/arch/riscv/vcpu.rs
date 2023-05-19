@@ -239,6 +239,7 @@ impl<H: HyperCraftHal> VCpu<H> {
         sstatus.set_spp(sstatus::SPP::Supervisor);
         regs.guest_regs.sstatus = sstatus.bits();
 
+        regs.guest_regs.gprs.set_reg(GprIndex::A0, 0);
         regs.guest_regs.gprs.set_reg(GprIndex::A1, 0x9000_0000);
 
         // Set entry
@@ -310,7 +311,6 @@ impl<H: HyperCraftHal> VCpu<H> {
             }
             Trap::Interrupt(Interrupt::SupervisorTimer) => VmExitInfo::TimerInterruptEmulation,
             Trap::Interrupt(Interrupt::SupervisorExternal) => {
-                debug!("external interrupt");
                 VmExitInfo::ExternalInterruptEmulation
             }
             Trap::Exception(Exception::LoadGuestPageFault)
@@ -338,16 +338,11 @@ impl<H: HyperCraftHal> VCpu<H> {
                 }
             }
             _ => {
-                let mut vstvec = 0;
-                unsafe {
-                    core::arch::asm!("csrr {vstvec}, vstvec", vstvec = out(reg) vstvec);
-                }
                 panic!(
-                    "Unhandled trap: {:?}, sepc: {:#x}, stval: {:#x}, vstvec: {:#x}",
+                    "Unhandled trap: {:?}, sepc: {:#x}, stval: {:#x}",
                     scause.cause(),
                     regs.guest_regs.sepc,
-                    regs.trap_csrs.stval,
-                    vstvec
+                    regs.trap_csrs.stval
                 );
             }
         }

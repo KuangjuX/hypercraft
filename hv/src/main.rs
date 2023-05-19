@@ -96,16 +96,24 @@ pub fn setup_gpm(dtb: usize) -> Result<GuestPageTable> {
         )?;
     }
 
-    gpt.map_region(
-        0x9000_0000,
-        0x9000_0000,
-        meta.physical_memory_size,
-        MappingFlags::READ | MappingFlags::WRITE | MappingFlags::EXECUTE | MappingFlags::USER,
-    )?;
     info!(
         "physical memory: [{:#x}: {:#x})",
         meta.physical_memory_offset,
         meta.physical_memory_offset + meta.physical_memory_size
     );
+
+    // gpt.map_region(
+    //     0x9000_0000,
+    //     0x9000_0000,
+    //     0x20_0000,
+    //     MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
+    // )?;
+
+    gpt.map_region(
+        meta.physical_memory_offset,
+        meta.physical_memory_offset,
+        meta.physical_memory_size,
+        MappingFlags::READ | MappingFlags::WRITE | MappingFlags::EXECUTE | MappingFlags::USER,
+    )?;
     Ok(gpt)
 }

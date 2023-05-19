@@ -75,12 +75,12 @@ extern "C" {
 
 #[no_mangle]
 pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
-    init_hv_runtime();
     ax_println!("rust_main! cpu_id={}, dtb={:#x}", cpu_id, dtb);
 
     axlog::init();
     axlog::set_max_level(option_env!("LOG").unwrap_or(""));
     info!("Logging is enabled");
+    init_hv_runtime();
     #[cfg(feature = "alloc")]
     {
         info!("Initialize allocator");

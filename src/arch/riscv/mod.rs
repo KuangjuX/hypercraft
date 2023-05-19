@@ -39,8 +39,7 @@ unsafe fn setup_csrs() {
             | traps::exception::ENV_CALL_FROM_U_OR_VU
             | traps::exception::INST_PAGE_FAULT
             | traps::exception::LOAD_PAGE_FAULT
-            | traps::exception::STORE_PAGE_FAULT
-            | traps::exception::ILLEGAL_INST,
+            | traps::exception::STORE_PAGE_FAULT, // | traps::exception::ILLEGAL_INST,
     );
 
     // Delegate all interupts.
@@ -61,9 +60,10 @@ unsafe fn setup_csrs() {
     CSR.hcounteren.write_value(0xffff_ffff);
 
     // enable interrupt
-    CSR.sie.read_and_set_bits(
+    CSR.sie.write_value(
         traps::interrupt::SUPERVISOR_EXTERNAL
             | traps::interrupt::SUPERVISOR_SOFT
             | traps::interrupt::SUPERVISOR_TIMER,
     );
+    debug!("sie: {:#x}", CSR.sie.get_value());
 }

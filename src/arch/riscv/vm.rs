@@ -56,7 +56,9 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                 VmExitInfo::Ecall(sbi_msg) => {
                     if let Some(sbi_msg) = sbi_msg {
                         match sbi_msg {
-                            HyperCallMsg::Base(base) => {}
+                            HyperCallMsg::Base(base) => {
+                                self.handle_base_function(base, &mut gprs).unwrap();
+                            }
                             HyperCallMsg::GetChar => {
                                 let c = sbi_rt::legacy::console_getchar();
                                 gprs.set_reg(GprIndex::A1, c);
@@ -65,6 +67,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                                 sbi_rt::legacy::console_putchar(c);
                             }
                             HyperCallMsg::SetTimer(timer) => {
+                                // debug!("Set timer to {}", timer);
                                 sbi_rt::set_timer(timer as u64);
                                 // Clear guest timer interrupt
                                 CSR.hvip.read_and_clear_bits(
@@ -109,6 +112,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                     }
                 },
                 VmExitInfo::TimerInterruptEmulation => {
+                    // debug!("timer irq emulation");
                     // Enable guest timer interrupt
                     CSR.hvip
                         .read_and_set_bits(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
@@ -205,32 +209,43 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
             BaseFunction::GetSepcificationVersion => {
                 let version = sbi_rt::get_spec_version();
                 gprs.set_reg(GprIndex::A1, version.major() << 24 | version.minor());
+                debug!(
+                    "GetSepcificationVersion: {}",
+                    version.major() << 24 | version.minor()
+                );
             }
             BaseFunction::GetImplementationID => {
                 let id = sbi_rt::get_sbi_impl_id();
                 gprs.set_reg(GprIndex::A1, id);
+                debug!("GetImplementationID: {}", id);
             }
             BaseFunction::GetImplementationVersion => {
                 let impl_version = sbi_rt::get_sbi_impl_version();
                 gprs.set_reg(GprIndex::A1, impl_version);
+                debug!("GetImplementationVersion: {}", impl_version);
             }
             BaseFunction::ProbeSbiExtension(extension) => {
                 let extension = sbi_rt::probe_extension(extension as usize).raw;
                 gprs.set_reg(GprIndex::A1, extension);
+                debug!("ProbeSbiExtension: {}", extension);
             }
             BaseFunction::GetMachineVendorID => {
                 let mvendorid = sbi_rt::get_mvendorid();
                 gprs.set_reg(GprIndex::A1, mvendorid);
+                debug!("GetMachineVendorID: {}", mvendorid);
             }
             BaseFunction::GetMachineArchitectureID => {
                 let marchid = sbi_rt::get_marchid();
                 gprs.set_reg(GprIndex::A1, marchid);
+                debug!("GetMachineArchitectureID: {}", marchid);
             }
             BaseFunction::GetMachineImplementationID => {
                 let mimpid = sbi_rt::get_mimpid();
                 gprs.set_reg(GprIndex::A1, mimpid);
+                debug!("GetMachineImplementationID: {}", mimpid);
             }
         }
+        gprs.set_reg(GprIndex::A0, 0);
         Ok(())
     }
 }
