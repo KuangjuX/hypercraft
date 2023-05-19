@@ -1,6 +1,9 @@
+use core::panic;
+
 use super::{
     devices::plic::{PlicState, MAX_CONTEXTS},
     regs::GeneralPurposeRegisters,
+    sbi::BaseFunction,
     traps,
     vcpu::{self, VmCpuRegisters},
     vm_pages::VmPages,
@@ -53,6 +56,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                 VmExitInfo::Ecall(sbi_msg) => {
                     if let Some(sbi_msg) = sbi_msg {
                         match sbi_msg {
+                            HyperCallMsg::Base(base) => {}
                             HyperCallMsg::GetChar => {
                                 let c = sbi_rt::legacy::console_getchar();
                                 gprs.set_reg(GprIndex::A1, c);
@@ -100,7 +104,9 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                         }
                         advance_pc = true;
                     }
-                    super::vmexit::PrivilegeLevel::User => {}
+                    super::vmexit::PrivilegeLevel::User => {
+                        panic!("User page fault")
+                    }
                 },
                 VmExitInfo::TimerInterruptEmulation => {
                     // Enable guest timer interrupt
@@ -138,6 +144,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
         if fault_addr >= self.plic.base() && fault_addr < self.plic.base() + 0x0400_0000 {
             self.handle_plic(inst_addr, inst, fault_addr, gprs)
         } else {
+            error!("inst_addr: {:#x}, fault_addr: {:#x}", inst_addr, fault_addr);
             Err(HyperError::PageFault)
         }
     }
@@ -187,5 +194,43 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
 
         CSR.hvip
             .read_and_set_bits(traps::interrupt::VIRTUAL_SUPERVISOR_EXTERNAL);
+    }
+
+    fn handle_base_function(
+        &self,
+        base: BaseFunction,
+        gprs: &mut GeneralPurposeRegisters,
+    ) -> HyperResult<()> {
+        match base {
+            BaseFunction::GetSepcificationVersion => {
+                let version = sbi_rt::get_spec_version();
+                gprs.set_reg(GprIndex::A1, version.major() << 24 | version.minor());
+            }
+            BaseFunction::GetImplementationID => {
+                let id = sbi_rt::get_sbi_impl_id();
+                gprs.set_reg(GprIndex::A1, id);
+            }
+            BaseFunction::GetImplementationVersion => {
+                let impl_version = sbi_rt::get_sbi_impl_version();
+                gprs.set_reg(GprIndex::A1, impl_version);
+            }
+            BaseFunction::ProbeSbiExtension(extension) => {
+                let extension = sbi_rt::probe_extension(extension as usize).raw;
+                gprs.set_reg(GprIndex::A1, extension);
+            }
+            BaseFunction::GetMachineVendorID => {
+                let mvendorid = sbi_rt::get_mvendorid();
+                gprs.set_reg(GprIndex::A1, mvendorid);
+            }
+            BaseFunction::GetMachineArchitectureID => {
+                let marchid = sbi_rt::get_marchid();
+                gprs.set_reg(GprIndex::A1, marchid);
+            }
+            BaseFunction::GetMachineImplementationID => {
+                let mimpid = sbi_rt::get_mimpid();
+                gprs.set_reg(GprIndex::A1, mimpid);
+            }
+        }
+        Ok(())
     }
 }

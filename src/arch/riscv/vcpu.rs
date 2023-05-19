@@ -239,6 +239,8 @@ impl<H: HyperCraftHal> VCpu<H> {
         sstatus.set_spp(sstatus::SPP::Supervisor);
         regs.guest_regs.sstatus = sstatus.bits();
 
+        regs.guest_regs.gprs.set_reg(GprIndex::A1, 0x9000_0000);
+
         // Set entry
         regs.guest_regs.sepc = entry;
         Self {
@@ -258,6 +260,7 @@ impl<H: HyperCraftHal> VCpu<H> {
                 "csrw hgatp, {hgatp}",
                 hgatp = in(reg) self.regs.virtual_hs_csrs.hgatp,
             );
+            core::arch::riscv64::hfence_gvma_all();
         }
     }
 
@@ -307,11 +310,20 @@ impl<H: HyperCraftHal> VCpu<H> {
             }
             Trap::Interrupt(Interrupt::SupervisorTimer) => VmExitInfo::TimerInterruptEmulation,
             Trap::Interrupt(Interrupt::SupervisorExternal) => {
+                debug!("external interrupt");
                 VmExitInfo::ExternalInterruptEmulation
             }
             Trap::Exception(Exception::LoadGuestPageFault)
             | Trap::Exception(Exception::StoreGuestPageFault) => {
                 let fault_addr = regs.trap_csrs.htval << 2 | regs.trap_csrs.stval & 0x3;
+                // debug!(
+                //     "fault_addr: {:#x}, htval: {:#x}, stval: {:#x}, sepc: {:#x}, scause: {:?}",
+                //     fault_addr,
+                //     regs.trap_csrs.htval,
+                //     regs.trap_csrs.stval,
+                //     regs.guest_regs.sepc,
+                //     scause.cause()
+                // );
                 VmExitInfo::PageFault {
                     fault_addr,
                     // Note that this address is not necessarily guest virtual as the guest may or

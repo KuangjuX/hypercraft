@@ -1,7 +1,9 @@
+mod base;
 mod dbcn;
 mod srst;
 
 use crate::{HyperError, HyperResult};
+pub use base::BaseFunction;
 use dbcn::DebugConsoleFunction;
 use sbi_spec;
 use srst::ResetFunction;
@@ -28,6 +30,8 @@ pub enum SbiReturnTyoe {
 /// SBI Message used to invoke the specfified SBI extension in the firmware.
 #[derive(Clone, Copy, Debug)]
 pub enum SbiMessage {
+    /// The base SBI extension functions.
+    Base(BaseFunction),
     /// The legacy GetChar extension.
     GetChar,
     /// The legacy PutChar extension.
@@ -46,6 +50,7 @@ impl SbiMessage {
     /// extension and the other A* registers will be interpreted based on the extension A7 selects.
     pub fn from_regs(args: &[usize]) -> HyperResult<Self> {
         match args[7] {
+            sbi_spec::base::EID_BASE => BaseFunction::from_regs(args).map(SbiMessage::Base),
             sbi_spec::legacy::LEGACY_CONSOLE_PUTCHAR => Ok(SbiMessage::PutChar(args[0])),
             sbi_spec::legacy::LEGACY_CONSOLE_GETCHAR => Ok(SbiMessage::GetChar),
             sbi_spec::legacy::LEGACY_SET_TIMER => Ok(SbiMessage::SetTimer(args[0])),

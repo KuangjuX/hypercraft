@@ -18,8 +18,10 @@ QEMUPATH	?= ~/software/qemu/qemu-7.1.0/build/
 QEMU 		:= $(QEMUPATH)qemu-system-riscv64
 BOOTLOADER	:= bootloader/rustsbi-qemu.bin
 
-GUEST 		?= rCore-Tutorial-v3
-GUEST_ELF	?= guest/rCore-Tutorial-v3/rCore-Tutorial-v3
+ROOTFS		:= /Users/kuangjux/software/kernel_workspace/rootfs.img
+
+GUEST 		?= linux
+GUEST_ELF	?= guest/$(GUEST)/$(GUEST)
 GUEST_BIN	?= $(GUEST_ELF).bin
 GUEST_DTB	?= $(GUEST_ELF).dtb
 
@@ -39,8 +41,9 @@ endif
 
 APP_ENTRY_PA := 0x80200000
 
-QEMUOPTS	= --machine virt -m 3G -bios $(BOOTLOADER) -nographic -smp $(CPUS)
-QEMUOPTS	+=-device loader,file=$(APP_BIN),addr=$(APP_ENTRY_PA)
+QEMUOPTS	= --machine virt -m 3G -bios $(BOOTLOADER) -nographic
+QEMUOPTS	+=-kernel $(APP_BIN)
+
 ifeq ($(GUEST), rCore-Tutorial-v3)
 	QEMUOPTS	+=-drive file=guest/rCore-Tutorial-v3/fs.img,if=none,format=raw,id=x0
 	QEMUOPTS	+=-device virtio-blk-device,drive=x0
@@ -49,10 +52,19 @@ ifeq ($(GUEST), rCore-Tutorial-v3)
 	QEMUOPTS	+=-device virtio-mouse-device
 	QEMUOPTS 	+=-device virtio-net-device,netdev=net0
 	QEMUOPTS	+=-netdev user,id=net0,hostfwd=udp::6200-:2000
+else ifeq ($(GUEST), rtthread)
+	QEMUOPTS    +=-drive if=none,file=guest/rtthread/sd.bin,format=raw,id=blk0 -device virtio-blk-device,drive=blk0,bus=virtio-mmio-bus.0
+	QEMUOPTS 	+=-netdev user,id=tap0 -device virtio-net-device,netdev=tap0,bus=virtio-mmio-bus.1
+	QEMUOPTS 	+=-device virtio-serial-device -chardev socket,host=127.0.0.1,port=4321,server=on,wait=off,telnet=on,id=console0 -device virtserialport,chardev=console0
+else ifeq ($(GUEST), linux)
+	QEMUOPTS	+=-drive file=$(ROOTFS),format=raw,id=hd0
+	QEMUOPTS 	+=-device virtio-blk-device,drive=hd0
+	QEMUOPTS	+=-append "root=/dev/vda rw console=ttyS0"
 endif
+
 ifeq ($(APP), hv)
-	QEMUOPTS 	+=-device loader,file=$(GUEST_DTB),addr=0x90000000
-	QEMUOPTS	+=-device loader,file=$(GUEST_BIN),addr=0x90200000
+	QEMUOPTS 	+=-device loader,file=$(GUEST_DTB),addr=0x90000000,force-raw=on
+	QEMUOPTS	+=-device loader,file=$(GUEST_BIN),addr=0x90200000,force-raw=on
 endif
 
 LD_SCRIPTS	:= hvruntime/src/linker.ld

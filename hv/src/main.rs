@@ -4,9 +4,12 @@
 extern crate alloc;
 
 use dtb::MachineMeta;
-use libax::hv::{
-    self, GuestPageTable, GuestPageTableTrait, HyperCallMsg, HyperCraftHalImpl, PerCpu, Result,
-    VCpu, VmCpus, VmExitInfo, VM,
+use libax::{
+    hv::{
+        self, GuestPageTable, GuestPageTableTrait, HyperCallMsg, HyperCraftHalImpl, PerCpu, Result,
+        VCpu, VmCpus, VmExitInfo, VM,
+    },
+    info,
 };
 use page_table_entry::MappingFlags;
 
@@ -44,8 +47,8 @@ pub fn setup_gpm(dtb: usize) -> Result<GuestPageTable> {
         gpt.map_region(
             test.base_address,
             test.base_address,
-            test.size,
-            MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
+            test.size + 0x1000,
+            MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER | MappingFlags::EXECUTE,
         )?;
     }
     for virtio in meta.virtio.iter() {
@@ -83,11 +86,26 @@ pub fn setup_gpm(dtb: usize) -> Result<GuestPageTable> {
             MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
         )?;
     }
+
+    if let Some(pci) = meta.pci {
+        gpt.map_region(
+            pci.base_address,
+            pci.base_address,
+            pci.size,
+            MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
+        )?;
+    }
+
     gpt.map_region(
-        meta.physical_memory_offset,
-        meta.physical_memory_offset,
+        0x9000_0000,
+        0x9000_0000,
         meta.physical_memory_size,
         MappingFlags::READ | MappingFlags::WRITE | MappingFlags::EXECUTE | MappingFlags::USER,
     )?;
+    info!(
+        "physical memory: [{:#x}: {:#x})",
+        meta.physical_memory_offset,
+        meta.physical_memory_offset + meta.physical_memory_size
+    );
     Ok(gpt)
 }
