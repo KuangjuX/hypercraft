@@ -13,14 +13,15 @@ git clone https://github.com/KuangjuX/hypercraft.git
 
 # build & run
 cd hypercraft
-make qemu GUEST=hello_world ARCH=riscv64 APP=hv
+make qemu GUEST=linux ARCH=riscv64 APP=hv
 ```
 
 ## RoadMap
 - CPU Virtualization
     - [x] Vcpu abstract layer(`vcpu_create()`, `vcpu_read()`, `vcpu_write()`, `vcpu_run()`)
     - [x] Load & run hello world binary in example.
-    - [x] `PerCpu` struct Design to support SMP
+    - [x] `PerCpu` struct Design to support SMP.
+    - [ ] Mult-Core boot.
     - [ ] Multi-Guest switch support(vcpu schedule)
 - Memory Virtualization
     - [x] Nested Page Table Support
@@ -35,7 +36,7 @@ make qemu GUEST=hello_world ARCH=riscv64 APP=hv
     - [ ] AIA Supported
 - System Supported
     - [x] rCore-Tutorial-v3
-    - [ ] Linux
+    - [x] Linux
     - [ ] Arceos
 
 
