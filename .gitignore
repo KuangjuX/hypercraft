@@ -2,8 +2,8 @@
 /Cargo.lock
 rust-analyzer.toml
 .vscode/
-*.dtb
-*.dtc
+# *.dtb
+# *.dtc
 hello_world.S
 hv.S
 linux.S
