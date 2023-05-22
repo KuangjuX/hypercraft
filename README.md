@@ -3,6 +3,8 @@
 
 ## Build & Run
 
+**Note:** rustc nightly version should <= 1.70.0 because of this issue: https://github.com/rust-lang/rust/issues/111637
+
 ### Linux
 **Clone project**
 ```
