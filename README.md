@@ -2,6 +2,9 @@
 🚧 WIP 🚧 hypercraft is a VMM library written in Rust. If you are interested in Design & Implement about this project, please see this [discussion](https://github.com/orgs/rcore-os/discussions/13). Currently, hypercraft relies heavily on the [Arceos](https://github.com/rcore-os/arceos) crate, reusing multiple crates and modules from arceos for development.
 
 ## Build & Run
+
+### Linux
+**Clone project**
 ```
 # create workspace
 mkdir $(WORKSPACE)
@@ -10,10 +13,19 @@ cd $(WORKSPACE)
 # clone project
 git clone https://github.com/KuangjuX/arceos.git
 git clone https://github.com/KuangjuX/hypercraft.git
+```
 
+**Download Disk File**
+Download disk file from Baidu Cloud Disk to `$(WORKSPACE)/guest/linux`:
+
+链接: https://pan.baidu.com/s/1WlBcw24raULlj5GPA5Qshw?pwd=jkkz 提取码: jkkz 复制这段内容后打开百度网盘手机App，操作更方便哦   
+--来自百度网盘超级会员v2的分享
+
+**Build & Run**
+```
 # build & run
 cd hypercraft
-make qemu GUEST=linux ARCH=riscv64 APP=hv ROOTFS=gust/linux/rootfs.img
+make qemu GUEST=linux ARCH=riscv64 APP=hv ROOTFS=guest/linux/rootfs.img
 ```
 
 ## RoadMap
