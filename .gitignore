@@ -8,3 +8,4 @@ hello_world.S
 hv.S
 linux.S
 *.txt
+rootfs.img
