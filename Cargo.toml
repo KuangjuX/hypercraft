@@ -11,7 +11,6 @@ members = [
     "hv",
     "hvruntime",
     "ulib/libax",
-    "guest/hello_world"
 ]
 
 [dependencies]
@@ -21,8 +20,8 @@ arrayvec = { version = "0.7.2", default-features = false }
 spin = { version = "0.9", features = ["once", "rwlock", "spin_mutex"] }
 tock-registers = "0.8.1"
 # arceos crates
-page_table = { path = "../arceos/crates/page_table"}
-page_table_entry = { path = "../arceos/crates/page_table_entry"}
+page_table = { git = "https://github.com/rcore-os/arceos.git#crates/page_table" }
+page_table_entry = { git = "https://github.com/rcore-os/arceos.git#crates/page_table_entry" }
 
 [target.'cfg(target_arch = "riscv64")'.dependencies]
 riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }
