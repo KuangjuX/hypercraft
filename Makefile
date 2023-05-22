@@ -18,7 +18,7 @@ QEMUPATH	?= ~/software/qemu/qemu-7.1.0/build/
 QEMU 		:= $(QEMUPATH)qemu-system-riscv64
 BOOTLOADER	:= bootloader/rustsbi-qemu.bin
 
-ROOTFS		?= /Users/kuangjux/software/kernel_workspace/rootfs.img
+ROOTFS		?= guest/linux/rootfs.img
 
 GUEST 		?= linux
 GUEST_ELF	?= guest/$(GUEST)/$(GUEST)
