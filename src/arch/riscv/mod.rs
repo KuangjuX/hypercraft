@@ -39,7 +39,8 @@ unsafe fn setup_csrs() {
             | traps::exception::ENV_CALL_FROM_U_OR_VU
             | traps::exception::INST_PAGE_FAULT
             | traps::exception::LOAD_PAGE_FAULT
-            | traps::exception::STORE_PAGE_FAULT, // | traps::exception::ILLEGAL_INST,
+            | traps::exception::STORE_PAGE_FAULT
+            | traps::exception::ILLEGAL_INST,
     );
 
     // Delegate all interupts.

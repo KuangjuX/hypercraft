@@ -8,6 +8,14 @@ use dbcn::DebugConsoleFunction;
 use sbi_spec;
 use srst::ResetFunction;
 
+pub const SBI_SUCCESS: usize = 0;
+pub const SBI_ERR_FAILUER: isize = -1;
+pub const SBI_ERR_NOT_SUPPORTED: isize = -2;
+pub const SBI_ERR_INAVLID_PARAM: isize = -3;
+pub const SBI_ERR_DENIED: isize = -4;
+pub const SBI_ERR_INVALID_ADDRESS: isize = -5;
+pub const SBI_ERR_ALREADY_AVAILABLE: isize = -6;
+
 /// The values returned from an SBI function call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SbiReturn {
@@ -42,6 +50,10 @@ pub enum SbiMessage {
     DebugConsole(DebugConsoleFunction),
     /// Handles system reset
     Reset(ResetFunction),
+    /// The RemoteFence Extension.
+    RemoteFence,
+    /// The PMU Extension
+    PMU,
 }
 
 impl SbiMessage {
@@ -56,8 +68,12 @@ impl SbiMessage {
             sbi_spec::legacy::LEGACY_SET_TIMER => Ok(SbiMessage::SetTimer(args[0])),
             sbi_spec::time::EID_TIME => Ok(SbiMessage::SetTimer(args[0])),
             sbi_spec::srst::EID_SRST => ResetFunction::from_regs(args).map(SbiMessage::Reset),
+            sbi_spec::rfnc::EID_RFNC => Ok(SbiMessage::RemoteFence),
+            sbi_spec::pmu::EID_PMU => Ok(SbiMessage::PMU),
             _ => {
                 error!("args: {:?}", args);
+                error!("args[7]: {:#x}", args[7]);
+                error!("EID_RFENCE: {:#x}", sbi_spec::rfnc::EID_RFNC);
                 Err(HyperError::NotFound)
             }
         }

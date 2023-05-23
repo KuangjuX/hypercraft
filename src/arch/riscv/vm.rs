@@ -10,8 +10,8 @@ use super::{
     HyperCallMsg, RiscvCsrTrait, CSR,
 };
 use crate::{
-    vcpus::VM_CPUS_MAX, GprIndex, GuestPageTableTrait, GuestPhysAddr, GuestVirtAddr, HyperCraftHal,
-    HyperError, HyperResult, VCpu, VmCpus, VmExitInfo,
+    arch::sbi::SBI_ERR_NOT_SUPPORTED, vcpus::VM_CPUS_MAX, GprIndex, GuestPageTableTrait,
+    GuestPhysAddr, GuestVirtAddr, HyperCraftHal, HyperError, HyperResult, VCpu, VmCpus, VmExitInfo,
 };
 use riscv_decode::Instruction;
 
@@ -79,6 +79,14 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                             }
                             HyperCallMsg::Reset(_) => {
                                 sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::SystemFailure);
+                            }
+                            HyperCallMsg::RemoteFence => {
+                                gprs.set_reg(GprIndex::A0, SBI_ERR_NOT_SUPPORTED as usize);
+                                error!("Remote fence is not supported");
+                            }
+                            HyperCallMsg::PMU => {
+                                gprs.set_reg(GprIndex::A0, SBI_ERR_NOT_SUPPORTED as usize);
+                                error!("PMU is not supported");
                             }
                             _ => todo!(),
                         }
