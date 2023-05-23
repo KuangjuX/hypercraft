@@ -82,11 +82,11 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                             }
                             HyperCallMsg::RemoteFence => {
                                 gprs.set_reg(GprIndex::A0, SBI_ERR_NOT_SUPPORTED as usize);
-                                error!("Remote fence is not supported");
+                                warn!("Remote fence is not supported");
                             }
                             HyperCallMsg::PMU => {
                                 gprs.set_reg(GprIndex::A0, SBI_ERR_NOT_SUPPORTED as usize);
-                                error!("PMU is not supported");
+                                warn!("PMU is not supported");
                             }
                             _ => todo!(),
                         }
