@@ -6,12 +6,12 @@ authors = ["KuangjuX <kuangjux@outlook.com>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[workspace]
-members = [
-    "hv",
-    "hvruntime",
-    "ulib/libax",
-]
+# [workspace]
+# members = [
+#     "hv",
+#     "hvruntime",
+#     "ulib/libax",
+# ]
 
 [dependencies]
 log = "0.4.17"
