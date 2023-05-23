@@ -19,6 +19,12 @@ extern crate log;
 #[cfg(target_arch = "riscv64")]
 #[path = "arch/riscv/mod.rs"]
 mod arch;
+// #[cfg(target_arch = "x86_64")]
+// #[path = "arch/x86/mod.rs"]
+// mod arch;
+// #[cfg(target_arch = "aarch64")]
+// #[path = "arch/aarch/mod.rs"]
+// mod arch;
 mod hal;
 mod memory;
 mod percpu;

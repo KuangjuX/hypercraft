@@ -13,6 +13,7 @@ pub const VM_CPUS_MAX: usize = MAX_CPUS;
 #[derive(Default)]
 pub struct VmCpus<H: HyperCraftHal> {
     inner: [Once<VCpu<H>>; VM_CPUS_MAX],
+    marker: core::marker::PhantomData<H>,
 }
 
 impl<H: HyperCraftHal> VmCpus<H> {
@@ -20,6 +21,7 @@ impl<H: HyperCraftHal> VmCpus<H> {
     pub fn new() -> Self {
         Self {
             inner: [Once::INIT; VM_CPUS_MAX],
+            marker: core::marker::PhantomData,
         }
     }
 
