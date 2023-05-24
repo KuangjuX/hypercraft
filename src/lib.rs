@@ -6,7 +6,8 @@
     dead_code,
     non_upper_case_globals,
     unused_imports,
-    unused_assignments
+    unused_assignments,
+    missing_docs
 )]
 #![deny(warnings)]
 #![feature(naked_functions, asm_const, negative_impls, stdsimd)]
