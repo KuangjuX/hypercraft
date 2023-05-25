@@ -5,12 +5,13 @@
     clippy::upper_case_acronyms,
     clippy::single_component_path_imports,
     clippy::collapsible_match,
+    clippy::default_constructed_unit_structs,
     dead_code,
     non_upper_case_globals,
     unused_imports,
     unused_assignments
 )]
-#![deny(warnings, missing_docs)]
+#![deny(missing_docs, warnings)]
 #![feature(naked_functions, asm_const, negative_impls, stdsimd)]
 
 extern crate alloc;
