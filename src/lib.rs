@@ -29,7 +29,7 @@ mod arch;
 mod arch;
 mod hal;
 mod memory;
-mod percpu;
+mod traits;
 mod vcpus;
 
 /// HyperCraft Result Define.
