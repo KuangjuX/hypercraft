@@ -23,6 +23,7 @@ pub struct VCpu<H: HyperCraftHal> {
 }
 
 impl<H: HyperCraftHal> VCpu<H> {
+    /// Get the vcpu id.
     pub fn vcpu_id(&self) -> usize {
         todo!()
     }
