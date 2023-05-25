@@ -24,6 +24,7 @@ use self::devices::plic::PlicState;
 use self::vcpu::VmCpuRegisters;
 use sbi::BaseFunction;
 
+/// Initialize the hypervisor runtime.
 pub fn init_hv_runtime() {
     unsafe {
         setup_csrs();

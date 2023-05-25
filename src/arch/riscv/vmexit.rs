@@ -31,20 +31,27 @@ pub enum VmExitInfo {
     Ecall(Option<SbiMessage>),
     /// G-stage page faluts
     PageFault {
+        /// Page fault addr.
         fault_addr: GuestPhysAddr,
+        /// Page fault inst addr.
         falut_pc: GuestVirtAddr,
+        /// Page fault inst.
         inst: u32,
+        /// Page fault privilege level.
         priv_level: PrivilegeLevel,
     },
     /// Instruction emulation trap
     VirtualInstruction {
+        /// Virtual instruction addr.
         fault_pc: GuestVirtAddr,
+        /// Virtual instruction privilege level.
         priv_level: PrivilegeLevel,
     },
     /// An interrupt intended for the vCPU's host.
     HostInterruot(Interrupt),
-    /// An interrupt for the running vCPU that can't be delegated and must be injected. The
+    /// An timer interrupt for the running vCPU that can't be delegated and must be injected. The
     /// interrupt is injected the vCPU is run.
     TimerInterruptEmulation,
+    /// An external interrupt for the running vCPU that can't be delegated and must be injected.
     ExternalInterruptEmulation,
 }

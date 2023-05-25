@@ -1,24 +1,24 @@
 use crate::{HyperCraftHal, HyperResult};
 use page_table_entry::MappingFlags;
 
+/// Guest physical address.
 pub type GuestPhysAddr = usize;
+/// Guest virtual address.
 pub type GuestVirtAddr = usize;
+/// Host physical address.
 pub type HostPhysAddr = usize;
+/// Host virtual address.
 pub type HostVirtAddr = usize;
+/// Guest page number.
 pub type GuestPageNum = usize;
+/// Host page number.
 pub type HostPageNum = usize;
 
 pub const PAGE_SIZE_4K: usize = 0x1000;
 
-// pub trait IntoHyperPageTableFlags: core::fmt::Debug {
-//     // TODO: cache policy
-//     fn is_read(&self) -> bool;
-//     fn is_write(&self) -> bool;
-//     fn is_execute(&self) -> bool;
-//     fn is_user(&self) -> bool;
-// }
-
+/// Guest page table trait.
 pub trait GuestPageTableTrait {
+    /// Create a new guest page table.
     fn new() -> HyperResult<Self>
     where
         Self: Sized;
@@ -32,6 +32,7 @@ pub trait GuestPageTableTrait {
         flags: MappingFlags,
     ) -> HyperResult<()>;
 
+    /// Map a guest physical region starts from `gpa` to the host physical
     fn map_region(
         &mut self,
         gpa: GuestPhysAddr,
@@ -48,34 +49,5 @@ pub trait GuestPageTableTrait {
     fn translate(&self, gpa: GuestPhysAddr) -> HyperResult<HostPhysAddr>;
 
     /// Get guest page table token.
-    fn token(&self) -> usize;
-}
-
-pub trait GuestPhysMemorySetTrait: Send + Sync {
-    // /// Physical address space size.
-    // fn size(&self) -> u64;
-
-    /// Add a contiguous guest physical memory region and create mapping,
-    /// with the target host physical address `hpa`(optional)
-    fn map(
-        &mut self,
-        gpa: GuestPhysAddr,
-        size: usize,
-        hpa: Option<HostPhysAddr>,
-    ) -> HyperResult<()>;
-
-    /// Remove a guest physical memory region, destroy the mapping.
-    fn unmap(&mut self, gpa: GuestPhysAddr, size: usize) -> HyperResult<()>;
-
-    // /// Read from guest address space.
-    // fn read_memory(&self, gpa: GuestPhysAddr, buf: &mut [u8]) -> HyperResult;
-
-    // /// Write to guest address space.
-    // fn write_memory(&self, gpa: GuestPhysAddr, buf: &[u8]) -> HyperResult;
-
-    // /// Called when accessed a non-maped guest physical address `gpa`.
-    // fn handle_page_fault(&self, gpa: GuestPhysAddr) -> HyperResult;
-
-    /// Return page table token.
     fn token(&self) -> usize;
 }

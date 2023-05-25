@@ -222,6 +222,7 @@ pub struct VCpu<H: HyperCraftHal> {
 }
 
 impl<H: HyperCraftHal> VCpu<H> {
+    /// Create a new vCPU
     pub fn new(vcpu_id: usize, entry: GuestPhysAddr) -> Self {
         let mut regs = VmCpuRegisters::default();
         // Set hstatus
@@ -252,6 +253,7 @@ impl<H: HyperCraftHal> VCpu<H> {
         }
     }
 
+    /// Initialize nested mmu.
     pub fn init_page_map(&mut self, token: usize) {
         // Set hgatp
         // TODO: Sv39 currently, but should be configurable
@@ -363,10 +365,12 @@ impl<H: HyperCraftHal> VCpu<H> {
         self.regs.guest_regs.sepc += instr_len
     }
 
+    /// Gets the vCPU's id.
     pub fn vcpu_id(&self) -> usize {
         self.vcpu_id
     }
 
+    /// Gets the vCPU's registers.
     pub fn regs(&mut self) -> &mut VmCpuRegisters {
         &mut self.regs
     }

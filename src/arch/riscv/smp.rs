@@ -100,6 +100,7 @@ impl<H: HyperCraftHal> PerCpu<H> {
         pcpu
     }
 
+    /// Get stack top addr.
     pub fn stack_top_addr(&self) -> HostVirtAddr {
         self.stack_top_addr
     }

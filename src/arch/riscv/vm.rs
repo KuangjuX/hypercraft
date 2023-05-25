@@ -24,6 +24,7 @@ pub struct VM<H: HyperCraftHal, G: GuestPageTableTrait> {
 }
 
 impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
+    /// Create a new VM with `vcpus` vCPUs and `gpt` as the guest page table.
     pub fn new(vcpus: VmCpus<H>, gpt: G) -> HyperResult<Self> {
         Ok(Self {
             vcpus,
@@ -33,6 +34,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
         })
     }
 
+    /// Initialize `VCpu` by `vcpu_id`.
     pub fn init_vcpu(&mut self, vcpu_id: usize) {
         let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
         vcpu.init_page_map(self.gpt.token());

@@ -10,4 +10,5 @@ impl PagingMetaData for Sv39GuestMetaData {
     const VA_MAX_BITS: usize = 41;
 }
 
+/// Nested page table define.
 pub type NestedPageTable<I> = PageTable64<Sv39GuestMetaData, Rv64PTE, I>;

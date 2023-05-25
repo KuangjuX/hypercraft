@@ -3,6 +3,7 @@
 pub struct GeneralPurposeRegisters([usize; 32]);
 
 /// Index of risc-v general purpose registers in `GeneralPurposeRegisters`.
+#[allow(missing_docs)]
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GprIndex {
@@ -41,6 +42,7 @@ pub enum GprIndex {
 }
 
 impl GprIndex {
+    /// Get register index from raw value.
     pub fn from_raw(raw: u32) -> Option<Self> {
         use GprIndex::*;
         let index = match raw {
