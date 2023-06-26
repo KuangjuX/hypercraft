@@ -3,8 +3,6 @@
 
 ## Build & Run
 
-**Note:** rustc nightly version should <= 1.70.0 because of this issue: https://github.com/rust-lang/rust/issues/111637
-
 ### Linux
 **Clone project**
 ```
@@ -14,21 +12,22 @@ cd $(WORKSPACE)
 
 # clone project
 git clone https://github.com/KuangjuX/arceos.git
-git clone https://github.com/KuangjuX/hypercraft.git
+git checkout hypervisor
+git submodule update --init --recursive
 ```
 
-**Download Disk File**  
+**Download Disk File & Linux Binary**  
 
 Download disk file from Baidu Cloud Disk to `$(WORKSPACE)/guest/linux`:
 
-链接: https://pan.baidu.com/s/1WlBcw24raULlj5GPA5Qshw?pwd=jkkz 提取码: jkkz 复制这段内容后打开百度网盘手机App，操作更方便哦   
+链接: https://pan.baidu.com/s/1OGuOjMe0VEFvDhPg3nzSjA?pwd=5ewv 提取码: 5ewv 复制这段内容后打开百度网盘手机App，操作更方便哦 
 --来自百度网盘超级会员v2的分享
 
 **Build & Run**
 ```
 # build & run
-cd hypercraft
-make qemu GUEST=linux ARCH=riscv64 APP=hv ROOTFS=guest/linux/rootfs.img
+cd arceos
+make ARCH=riscv64 A=apps/hv HY=y LOG=info run
 ```
 
 ## RoadMap
