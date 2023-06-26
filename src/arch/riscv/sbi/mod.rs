@@ -1,12 +1,16 @@
 mod base;
 mod dbcn;
+mod pmu;
+mod rfnc;
 mod srst;
 
 use crate::{HyperError, HyperResult};
 pub use base::BaseFunction;
 use dbcn::DebugConsoleFunction;
+pub use pmu::PmuFunction;
+pub use rfnc::RemoteFenceFunction;
 use sbi_spec;
-use srst::ResetFunction;
+pub use srst::ResetFunction;
 
 pub const SBI_SUCCESS: usize = 0;
 pub const SBI_ERR_FAILUER: isize = -1;
@@ -51,9 +55,9 @@ pub enum SbiMessage {
     /// Handles system reset
     Reset(ResetFunction),
     /// The RemoteFence Extension.
-    RemoteFence,
+    RemoteFence(RemoteFenceFunction),
     /// The PMU Extension
-    PMU,
+    PMU(PmuFunction),
 }
 
 impl SbiMessage {
@@ -68,8 +72,10 @@ impl SbiMessage {
             sbi_spec::legacy::LEGACY_SET_TIMER => Ok(SbiMessage::SetTimer(args[0])),
             sbi_spec::time::EID_TIME => Ok(SbiMessage::SetTimer(args[0])),
             sbi_spec::srst::EID_SRST => ResetFunction::from_regs(args).map(SbiMessage::Reset),
-            sbi_spec::rfnc::EID_RFNC => Ok(SbiMessage::RemoteFence),
-            sbi_spec::pmu::EID_PMU => Ok(SbiMessage::PMU),
+            sbi_spec::rfnc::EID_RFNC => {
+                RemoteFenceFunction::from_args(args).map(SbiMessage::RemoteFence)
+            }
+            sbi_spec::pmu::EID_PMU => PmuFunction::from_regs(args).map(SbiMessage::PMU),
             _ => {
                 error!("args: {:?}", args);
                 error!("args[7]: {:#x}", args[7]);

@@ -3,7 +3,8 @@ use core::panic;
 use super::{
     devices::plic::{PlicState, MAX_CONTEXTS},
     regs::GeneralPurposeRegisters,
-    sbi::BaseFunction,
+    sbi::PmuFunction,
+    sbi::{BaseFunction, RemoteFenceFunction},
     traps,
     vcpu::{self, VmCpuRegisters},
     vm_pages::VmPages,
@@ -14,6 +15,7 @@ use crate::{
     GuestPhysAddr, GuestVirtAddr, HyperCraftHal, HyperError, HyperResult, VCpu, VmCpus, VmExitInfo,
 };
 use riscv_decode::Instruction;
+use sbi_rt::{pmu_counter_get_info, pmu_counter_stop};
 
 /// A VM that is being run.
 pub struct VM<H: HyperCraftHal, G: GuestPageTableTrait> {
@@ -69,7 +71,6 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                                 sbi_rt::legacy::console_putchar(c);
                             }
                             HyperCallMsg::SetTimer(timer) => {
-                                // debug!("Set timer to {}", timer);
                                 sbi_rt::set_timer(timer as u64);
                                 // Clear guest timer interrupt
                                 CSR.hvip.read_and_clear_bits(
@@ -82,13 +83,11 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
                             HyperCallMsg::Reset(_) => {
                                 sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::SystemFailure);
                             }
-                            HyperCallMsg::RemoteFence => {
-                                gprs.set_reg(GprIndex::A0, SBI_ERR_NOT_SUPPORTED as usize);
-                                warn!("Remote fence is not supported");
+                            HyperCallMsg::RemoteFence(rfnc) => {
+                                self.handle_rfnc_function(rfnc, &mut gprs).unwrap();
                             }
-                            HyperCallMsg::PMU => {
-                                gprs.set_reg(GprIndex::A0, SBI_ERR_NOT_SUPPORTED as usize);
-                                warn!("PMU is not supported");
+                            HyperCallMsg::PMU(pmu) => {
+                                self.handle_pmu_function(pmu, &mut gprs).unwrap();
                             }
                             _ => todo!(),
                         }
@@ -227,35 +226,93 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
             BaseFunction::GetImplementationID => {
                 let id = sbi_rt::get_sbi_impl_id();
                 gprs.set_reg(GprIndex::A1, id);
-                debug!("GetImplementationID: {}", id);
             }
             BaseFunction::GetImplementationVersion => {
                 let impl_version = sbi_rt::get_sbi_impl_version();
                 gprs.set_reg(GprIndex::A1, impl_version);
-                debug!("GetImplementationVersion: {}", impl_version);
             }
             BaseFunction::ProbeSbiExtension(extension) => {
                 let extension = sbi_rt::probe_extension(extension as usize).raw;
                 gprs.set_reg(GprIndex::A1, extension);
-                debug!("ProbeSbiExtension: {}", extension);
             }
             BaseFunction::GetMachineVendorID => {
                 let mvendorid = sbi_rt::get_mvendorid();
                 gprs.set_reg(GprIndex::A1, mvendorid);
-                debug!("GetMachineVendorID: {}", mvendorid);
             }
             BaseFunction::GetMachineArchitectureID => {
                 let marchid = sbi_rt::get_marchid();
                 gprs.set_reg(GprIndex::A1, marchid);
-                debug!("GetMachineArchitectureID: {}", marchid);
             }
             BaseFunction::GetMachineImplementationID => {
                 let mimpid = sbi_rt::get_mimpid();
                 gprs.set_reg(GprIndex::A1, mimpid);
-                debug!("GetMachineImplementationID: {}", mimpid);
             }
         }
         gprs.set_reg(GprIndex::A0, 0);
+        Ok(())
+    }
+
+    fn handle_pmu_function(
+        &self,
+        pmu: PmuFunction,
+        gprs: &mut GeneralPurposeRegisters,
+    ) -> HyperResult<()> {
+        gprs.set_reg(GprIndex::A0, 0);
+        match pmu {
+            PmuFunction::GetNumCounters => gprs.set_reg(GprIndex::A1, sbi_rt::pmu_num_counters()),
+            PmuFunction::GetCounterInfo(counter_index) => {
+                let sbi_ret = pmu_counter_get_info(counter_index as usize);
+                gprs.set_reg(GprIndex::A0, sbi_ret.error);
+                gprs.set_reg(GprIndex::A1, sbi_ret.value);
+            }
+            PmuFunction::StopCounter {
+                counter_index,
+                counter_mask,
+                stop_flags,
+            } => {
+                let sbi_ret = pmu_counter_stop(
+                    counter_index as usize,
+                    counter_mask as usize,
+                    stop_flags as usize,
+                );
+                gprs.set_reg(GprIndex::A0, sbi_ret.error);
+                gprs.set_reg(GprIndex::A1, sbi_ret.value);
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_rfnc_function(
+        &self,
+        rfnc: RemoteFenceFunction,
+        gprs: &mut GeneralPurposeRegisters,
+    ) -> HyperResult<()> {
+        gprs.set_reg(GprIndex::A0, 0);
+        match rfnc {
+            RemoteFenceFunction::FenceI {
+                hart_mask,
+                hart_mask_base,
+            } => {
+                let sbi_ret = sbi_rt::remote_fence_i(hart_mask as usize, hart_mask_base as usize);
+                gprs.set_reg(GprIndex::A0, sbi_ret.error);
+                gprs.set_reg(GprIndex::A1, sbi_ret.value);
+            }
+            RemoteFenceFunction::RemoteSFenceVMA {
+                hart_mask,
+                hart_mask_base,
+                start_addr,
+                size,
+            } => {
+                let sbi_ret = sbi_rt::remote_sfence_vma(
+                    hart_mask as usize,
+                    hart_mask_base as usize,
+                    start_addr as usize,
+                    size as usize,
+                );
+                gprs.set_reg(GprIndex::A0, sbi_ret.error);
+                gprs.set_reg(GprIndex::A1, sbi_ret.value);
+            }
+        }
         Ok(())
     }
 }
