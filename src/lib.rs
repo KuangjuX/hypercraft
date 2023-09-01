@@ -12,22 +12,22 @@
     unused_assignments
 )]
 #![deny(missing_docs, warnings)]
-#![feature(naked_functions, asm_const, negative_impls, stdsimd)]
+#![feature(naked_functions, asm_const, negative_impls, stdsimd, inline_const)]
 
 extern crate alloc;
 
 #[macro_use]
 extern crate log;
 
-#[cfg(target_arch = "riscv64")]
+// #[cfg(target_arch = "aarch64")]
+#[path = "arch/aarch64/mod.rs"]
+mod arch;
+/*#[cfg(target_arch = "riscv64")]
 #[path = "arch/riscv/mod.rs"]
 mod arch;
 #[cfg(target_arch = "x86_64")]
 #[path = "arch/dummy.rs"]
-mod arch;
-#[cfg(target_arch = "aarch64")]
-#[path = "arch/dummy.rs"]
-mod arch;
+mod arch;*/
 mod hal;
 mod memory;
 mod traits;
@@ -36,8 +36,14 @@ mod vcpus;
 /// HyperCraft Result Define.
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
+/*#[cfg(target_arch = "riscv64")]
 pub use arch::{
     init_hv_runtime, GprIndex, HyperCallMsg, NestedPageTable, PerCpu, VCpu, VmExitInfo, VM,
+};
+*/
+// #[cfg(target_arch = "aarch64")]
+pub use arch::{
+    CPU_INTERFACE_LIST, current_cpu, active_vm, IPI_HANDLER_LIST,
 };
 
 pub use hal::HyperCraftHal;

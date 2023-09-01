@@ -1,7 +1,8 @@
 TARGET		:= riscv64gc-unknown-none-elf
 MODE		:= release
 
-ARCH 		?= riscv64
+# ARCH 		?= riscv64
+ARCH 		?= aarch64
 
 APP			?= hv
 APP_ELF		:= target/$(TARGET)/$(MODE)/$(APP)
