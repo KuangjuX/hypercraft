@@ -12,10 +12,19 @@ log = "0.4.17"
 memoffset = { version = ">=0.6.5", features = ["unstable_const"] }
 arrayvec = { version = "0.7.2", default-features = false }
 spin = { version = "0.9", features = ["once", "rwlock", "spin_mutex"] }
-tock-registers = "0.8.1"
+# tock-registers = "0.8.1"
+cortex-a = "7.4.0"
+
 # arceos crates
 page_table = { path = "../page_table" }
 page_table_entry = { path = "../page_table_entry" }
+arm_gic = { path = "../arm_gic" }
+
+[dependencies.tock-registers]
+version = "0.7.0"
+default-features = false
+features = ["register_types"]
+
 
 [target.'cfg(target_arch = "riscv64")'.dependencies]
 riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }
