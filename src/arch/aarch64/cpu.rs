@@ -68,10 +68,10 @@ pub struct Cpu{
     pub context_addr: Option<usize>,
 
     pub active_vcpu: Option<Vcpu>,
-    vcpu_array: VcpuArray,
+    pub vcpu_array: VcpuArray,
 
     // pub sched: SchedType, todo
-    current_irq: usize,
+    pub current_irq: usize,
     // pub cpu_pt: CpuPt,
 }
 

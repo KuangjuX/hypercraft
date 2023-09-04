@@ -10,9 +10,8 @@
 
 use alloc::slice::{Iter, IterMut};
 
-use crate::board::{PLAT_DESC, SchedRule};
-use crate::kernel::{current_cpu, SchedType, SchedulerRR, Vcpu, VM_NUM_MAX, interrupt_cpu_enable};
 use crate::arch::ContextFrame;
+use crate::arch::vcpu::Vcpu;
 
 pub struct VcpuArray {
     array: [Option<Vcpu>; VM_NUM_MAX],

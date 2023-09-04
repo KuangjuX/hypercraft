@@ -1,10 +1,18 @@
 mod contextFrame;
 mod cpu;
+mod exception;
+mod emu;
 mod ipi;
 mod interrupt;
+mod psci;
+mod smc;
+mod sync;
+mod util;
 mod vcpu;
 mod vcpu_array;
+mod vgic;
 mod vm;
+mod vmConfig;
 mod vmPages;
 mod manageVm;
 mod gic;
@@ -12,6 +20,7 @@ mod gic;
 pub use cpu::{current_cpu, CPU_INTERFACE_LIST, active_vm};
 pub use ipi::IPI_HANDLER_LIST;
 pub use gic::{GICC, GICD, GICH};
+pub use interrupt::interrupt_handler;
 
 type ContextFrame = crate::arch::contextFrame::Aarch64ContextFrame;
 

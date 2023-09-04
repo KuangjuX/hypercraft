@@ -36,15 +36,11 @@ mod vcpus;
 /// HyperCraft Result Define.
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
-/*#[cfg(target_arch = "riscv64")]
+#[cfg(target_arch = "riscv64")]
 pub use arch::{
     init_hv_runtime, GprIndex, HyperCallMsg, NestedPageTable, PerCpu, VCpu, VmExitInfo, VM,
 };
-*/
-// #[cfg(target_arch = "aarch64")]
-pub use arch::{
-    CPU_INTERFACE_LIST, current_cpu, active_vm, IPI_HANDLER_LIST,
-};
+
 
 pub use hal::HyperCraftHal;
 pub use memory::{

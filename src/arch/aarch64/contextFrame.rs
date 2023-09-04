@@ -17,10 +17,10 @@ extern "C" {
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct Aarch64ContextFrame {
-    gpr: [u64; 31],
+    pub gpr: [u64; 31],
+    pub sp: u64,
+    pub elr: u64,
     pub spsr: u64,
-    elr: u64,
-    sp: u64,
 }
 
 impl core::fmt::Display for Aarch64ContextFrame {
