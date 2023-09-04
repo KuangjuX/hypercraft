@@ -1,11 +1,18 @@
 use arm_gic::gic_v2::{GicDistributor, GicHypervisorInterface, GicCpuInterface};
 use arm_gic::GIC_LIST_REGS_NUM;
 
+use crate::arch::cpu::current_cpu;
+use crate::arch::util::bit_extract;
+
 pub const GICV_BASE: usize = 0x08040000;
 
 pub static GICD: Option<&GicDistributor> = None;
 pub static GICC: Option<&GicCpuInterface> = None;
 pub static GICH: Option<&GicHypervisorInterface> = None;
+
+// GICC BITS
+pub const GICC_CTLR_EN_BIT: usize = 0x1;
+pub const GICC_CTLR_EOIMODENS_BIT: usize = 1 << 9;
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -83,4 +90,34 @@ pub struct GicIrqState {
     pub active: u8,
     pub priority: u8,
     pub target: u8,
+}
+
+pub fn gicc_get_current_irq() -> (usize, usize) {
+    if let Some(gicc) = GICC {
+        let iar = gicc.get_iar();
+        let irq = iar as usize;
+        current_cpu().current_irq = irq;
+        let id = bit_extract(iar as usize, 0, 10);
+        let src = bit_extract(iar as usize, 10, 3);
+        (id, src)
+    } else {
+        warn!("No available gicc for gicc_get_current_irq");
+        (usize::MAX, usize::MAX)
+    }
+}
+
+pub fn gicc_clear_current_irq(for_hypervisor: bool) {
+    let irq = current_cpu().current_irq as u32;
+    if irq == 0 {
+        return;
+    }
+    let Some(gicc) = GICC;
+    // let gicc = &GICC;
+    gicc.set_eoi(irq);
+    // gicc.EOIR.set(irq);
+    if for_hypervisor {
+        gicc.set_dir(irq);
+    }
+    let irq = 0;
+    current_cpu().current_irq = irq;
 }

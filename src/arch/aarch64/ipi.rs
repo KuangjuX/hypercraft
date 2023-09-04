@@ -2,13 +2,6 @@ use alloc::vec::Vec;
 
 use spin::Mutex;
 
-//use crate::arch::INTERRUPT_IRQ_IPI;
-//use crate::board::PLAT_DESC;
-//use crate::device::{VirtioMmio, Virtq};
-//use crate::kernel::{CPU_IF_LIST, current_cpu, interrupt_cpu_ipi_send};
-//use crate::vmm::VmmEvent;
-
-// use super::Vm;
 use arm_gic::SGI_RANGE;
 use crate::arch::cpu::{current_cpu, CPU_INTERFACE_LIST};
 use crate::arch::manageVm::VmmEvent;
@@ -46,11 +39,26 @@ pub struct IpiInitcMessage {
 }
 
 #[derive(Copy, Clone)]
+pub struct IpiPowerMessage {
+    pub src: usize,
+    pub event: PowerEvent,
+    pub entry: usize,
+    pub context: usize,
+}
+
+#[derive(Copy, Clone)]
 pub struct IpiVmmMsg {
     pub vmid: usize,
     pub event: VmmEvent,
 }
 
+#[derive(Clone, Copy)]
+pub struct IpiHvcMsg {
+    pub src_vmid: usize,
+    pub trgt_vmid: usize,
+    pub fid: usize,
+    pub event: usize,
+}
 
 #[derive(Clone, Copy)]
 pub struct IpiIntInjectMsg {
@@ -61,13 +69,19 @@ pub struct IpiIntInjectMsg {
 #[derive(Copy, Clone, Debug)]
 pub enum IpiType {
     IpiTIntc = 0,
+    IpiTPower = 1,
+    IpiTHvc = 4,
     IpiTVMM = 5,
+    IpiTIntInject = 8,
 }
 
 #[derive(Clone)]
 pub enum IpiInnerMsg {
     Initc(IpiInitcMessage),
+    Power(IpiPowerMessage),
     VmmMsg(IpiVmmMsg),
+    HvcMsg(IpiHvcMsg),
+    IntInjectMsg(IpiIntInjectMsg),
     None,
 }
 

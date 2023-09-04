@@ -17,14 +17,16 @@ use spin::Mutex;
 // type ContextFrame = crate::arch::contextFrame::Aarch64ContextFrame;
 use cortex_a::registers::*;
 use tock_registers::interfaces::*;
+ 
 
 use crate::arch::{ContextFrame, memcpy_safe};
 use crate::arch::contextFrame::VmContext;
 use crate::traits::ContextFrameTrait;
-use crate::arch::vm::{Vm, VmState, vm_if_set_state};
+use crate::arch::vm::Vm;
 use crate::arch::gic::{GICV_BASE, GICD, GICC, GICH};
-use crate::arch::cpu::{current_cpu, active_vm_id};
+use crate::arch::cpu::{current_cpu, active_vm_id, active_vcpu_id};
 use crate::arch::interrupt::{interrupt_vm_inject, cpu_interrupt_unmask};
+use crate::arch::psci::power_arch_cpu_shutdown;
 
 #[derive(Clone, Copy, Debug)]
 pub enum VcpuState {
@@ -36,15 +38,6 @@ pub enum VcpuState {
 #[derive(Clone)]
 pub struct Vcpu {
     pub inner: Arc<Mutex<VcpuInner>>,
-}
-pub fn vcpu_arch_init(vm: Vm, vcpu: Vcpu) {
-    let config = vm.config();
-    let mut vcpu_inner = vcpu.inner.lock();
-    vcpu_inner.vcpu_ctx.set_argument(config.device_tree_load_ipa());
-    vcpu_inner.vcpu_ctx.set_exception_pc(config.kernel_entry_point());
-    vcpu_inner.vcpu_ctx.spsr =
-        (SPSR_EL1::M::EL1h + SPSR_EL1::I::Masked + SPSR_EL1::F::Masked + SPSR_EL1::A::Masked + SPSR_EL1::D::Masked)
-            .value;
 }
 
 impl Vcpu {
@@ -62,6 +55,17 @@ impl Vcpu {
         drop(inner);
         vcpu_arch_init(vm, self.clone());
         self.reset_context();
+    }
+
+    pub fn shutdown(&self) {
+        info!(
+            "Core {} (vm {} vcpu {}) shutdown ok",
+            current_cpu().cpu_id,
+            active_vm_id(),
+            active_vcpu_id()
+        );
+        // crate::board::Platform::cpu_shutdown();
+        power_arch_cpu_shutdown();
     }
 
     pub fn context_vm_store(&self) {
@@ -310,6 +314,11 @@ impl VcpuInner {
         self.vm_ctx.vmpidr_el2 = vmpidr as u64;
     }
 
+    fn reset_vtimer_offset(&mut self) {
+        let curpct = cortex_a::registers::CNTPCT_EL0.get() as u64;
+        self.vm_ctx.cntvoff_el2 = curpct - self.vm_ctx.cntvct_el0;
+    }
+    
     fn reset_context(&mut self) {
         self.arch_ctx_reset();
         self.gic_ctx_reset();
@@ -357,6 +366,16 @@ impl VcpuInner {
 
 pub static VCPU_LIST: Mutex<Vec<Vcpu>> = Mutex::new(Vec::new());
 
+pub fn vcpu_arch_init(vm: Vm, vcpu: Vcpu) {
+    let config = vm.config();
+    let mut vcpu_inner = vcpu.inner.lock();
+    vcpu_inner.vcpu_ctx.set_argument(config.device_tree_load_ipa());
+    vcpu_inner.vcpu_ctx.set_exception_pc(config.kernel_entry_point());
+    vcpu_inner.vcpu_ctx.spsr =
+        (SPSR_EL1::M::EL1h + SPSR_EL1::I::Masked + SPSR_EL1::F::Masked + SPSR_EL1::A::Masked + SPSR_EL1::D::Masked)
+            .value;
+}
+
 pub fn vcpu_alloc() -> Option<Vcpu> {
     let mut vcpu_list = VCPU_LIST.lock();
     if vcpu_list.len() >= 8 {
@@ -392,8 +411,6 @@ pub fn vcpu_run(announce: bool) -> ! {
     {
         let vcpu = current_cpu().active_vcpu.clone().unwrap();
         let vm = vcpu.vm().unwrap();
-        
-        vm_if_set_state(active_vm_id(), VmState::VmActive);
 
         vcpu.context_vm_restore();
         /*
