@@ -10,7 +10,6 @@
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use alloc::vec;
 use core::mem::size_of;
 use spin::Mutex;
 
@@ -19,12 +18,12 @@ use cortex_a::registers::*;
 use tock_registers::interfaces::*;
  
 
-use crate::arch::{ContextFrame, memcpy_safe};
+use crate::arch::{ContextFrame, memcpy_safe, current_cpu, GICV_BASE};
 use crate::arch::contextFrame::VmContext;
 use crate::traits::ContextFrameTrait;
 use crate::arch::vm::Vm;
-use crate::arch::gic::{GICV_BASE, GICD, GICC, GICH};
-use crate::arch::cpu::{current_cpu, active_vm_id, active_vcpu_id};
+use crate::arch::gic::{GICD, GICC, GICH};
+use crate::arch::{active_vm_id, active_vcpu_id};
 use crate::arch::interrupt::{interrupt_vm_inject, cpu_interrupt_unmask};
 use crate::arch::psci::power_arch_cpu_shutdown;
 
@@ -365,6 +364,38 @@ impl VcpuInner {
 }
 
 pub static VCPU_LIST: Mutex<Vec<Vcpu>> = Mutex::new(Vec::new());
+
+pub fn restore_vcpu_gic(cur_vcpu: Option<Vcpu>, trgt_vcpu: Vcpu) {
+    // println!("restore_vcpu_gic");
+    match cur_vcpu {
+        None => {
+            // println!("None cur vmid trgt {}", trgt_vcpu.vm_id());
+            trgt_vcpu.gic_restore_context();
+        }
+        Some(active_vcpu) => {
+            if trgt_vcpu.vm_id() != active_vcpu.vm_id() {
+                // println!("different vm_id cur {}, trgt {}", active_vcpu.vm_id(), trgt_vcpu.vm_id());
+                active_vcpu.gic_save_context();
+                trgt_vcpu.gic_restore_context();
+            }
+        }
+    }
+}
+
+pub fn save_vcpu_gic(cur_vcpu: Option<Vcpu>, trgt_vcpu: Vcpu) {
+    // println!("save_vcpu_gic");
+    match cur_vcpu {
+        None => {
+            trgt_vcpu.gic_save_context();
+        }
+        Some(active_vcpu) => {
+            if trgt_vcpu.vm_id() != active_vcpu.vm_id() {
+                trgt_vcpu.gic_save_context();
+                active_vcpu.gic_restore_context();
+            }
+        }
+    }
+}
 
 pub fn vcpu_arch_init(vm: Vm, vcpu: Vcpu) {
     let config = vm.config();

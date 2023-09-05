@@ -326,7 +326,7 @@ impl Vm {
         let mut vm_inner = self.inner.lock();
         vm_inner.entry_point = entry_point;
     }
-    /*
+
     pub fn set_emu_devs(&self, idx: usize, emu: EmuDevs) {
         let mut vm_inner = self.inner.lock();
         if idx < vm_inner.emu_devs.len() {
@@ -341,7 +341,7 @@ impl Vm {
         vm_inner.emu_devs.resize(idx, EmuDevs::None);
         vm_inner.emu_devs.push(emu);
     }
-    */
+
     pub fn set_intc_dev_id(&self, intc_dev_id: usize) {
         let mut vm_inner = self.inner.lock();
         vm_inner.intc_dev_id = intc_dev_id;

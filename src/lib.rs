@@ -14,10 +14,10 @@
 #![deny(missing_docs, warnings)]
 #![feature(naked_functions, asm_const, negative_impls, stdsimd, inline_const)]
 
-extern crate alloc;
-
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate alloc;
 
 // #[cfg(target_arch = "aarch64")]
 #[path = "arch/aarch64/mod.rs"]

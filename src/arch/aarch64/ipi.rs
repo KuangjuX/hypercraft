@@ -3,10 +3,10 @@ use alloc::vec::Vec;
 use spin::Mutex;
 
 use arm_gic::SGI_RANGE;
-use crate::arch::cpu::{current_cpu, CPU_INTERFACE_LIST};
+use crate::arch::cpu::CPU_INTERFACE_LIST;
 use crate::arch::manageVm::VmmEvent;
 use crate::arch::vm::Vm;
-use crate::arch::GICD;
+use crate::arch::{GICD, current_cpu};
 
 const IPI_IRQ_NUM: usize = 1;
 

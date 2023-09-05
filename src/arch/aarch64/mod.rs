@@ -1,13 +1,15 @@
 mod contextFrame;
 mod cpu;
+mod config;
 mod exception;
 mod emu;
 mod ipi;
 mod interrupt;
+mod hvc;
 mod psci;
 mod smc;
 mod sync;
-mod util;
+mod utils;
 mod vcpu;
 mod vcpu_array;
 mod vgic;
@@ -16,11 +18,17 @@ mod vmConfig;
 mod vmPages;
 mod manageVm;
 mod gic;
+mod ivc;
+mod platform_qemu;
 
-pub use cpu::{current_cpu, CPU_INTERFACE_LIST, active_vm};
+pub use cpu::{current_cpu, CPU_INTERFACE_LIST, active_vm, active_vcpu_id, active_vm_id};
 pub use ipi::IPI_HANDLER_LIST;
 pub use gic::{GICC, GICD, GICH};
 pub use interrupt::interrupt_handler;
+pub use config::*;
+pub use platform_qemu::*;
+
+pub use page_table::PageSize;
 
 type ContextFrame = crate::arch::contextFrame::Aarch64ContextFrame;
 

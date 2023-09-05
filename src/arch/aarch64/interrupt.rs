@@ -3,12 +3,12 @@ use tock_registers::interfaces::*;
 
 use crate::arch::vm::Vm;
 use crate::arch::vcpu::{Vcpu, VcpuState};
-use crate::arch::cpu::current_cpu;
+use crate::arch::current_cpu;
+
+pub const INTERRUPT_IRQ_GUEST_TIMER: usize = 27;
 
 pub fn interrupt_vm_inject(vm: Vm, vcpu: Vcpu, int_id: usize) {
     let vgic = vm.vgic();
-    // println!("int {}, cur vcpu vm {}, trgt vcpu vm {}", int_id, active_vm_id(), vcpu.vm_id());
-    // restore_vcpu_gic(current_cpu().active_vcpu.clone(), vcpu.clone());
     if let Some(cur_vcpu) = current_cpu().active_vcpu.clone() {
         if cur_vcpu.vm_id() == vcpu.vm_id() {
             vgic.inject(vcpu, int_id);
@@ -16,7 +16,6 @@ pub fn interrupt_vm_inject(vm: Vm, vcpu: Vcpu, int_id: usize) {
         }
     }
     vcpu.push_int(int_id);
-    // save_vcpu_gic(current_cpu().active_vcpu.clone(), vcpu.clone());
 }
 
 /// Mask (disable) interrupt from perspective of CPU

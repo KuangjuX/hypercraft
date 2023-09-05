@@ -409,3 +409,108 @@ pub fn vmm_ipi_handler(msg: &IpiMessage) {
         }
     }
 }
+
+pub fn vmm_remove_vm(vm_id: usize) {
+    if vm_id == 0 {
+        warn!("Rust-Shyper do not support remove vm0");
+        return;
+    }
+
+    let vm = match vm(vm_id) {
+        None => {
+            println!("vmm_remove_vm: vm[{}] not exist", vm_id);
+            return;
+        }
+        Some(vm) => vm,
+    };
+
+    // vcpu
+    vmm_remove_vcpu(vm.clone());
+    // reset vm interface
+    vm_if_reset(vm_id);
+    // free mem
+    for idx in 0..vm.region_num() {
+        memset_safe(vm.pa_start(idx) as *mut u8, 0, vm.pa_length(idx));
+        mem_vm_region_free(vm.pa_start(idx), vm.pa_length(idx));
+    }
+    // emu dev
+    vmm_remove_emulated_device(vm.clone());
+    // passthrough dev
+    vmm_remove_passthrough_device(vm.clone());
+    // clear async task list
+    remove_vm_async_task(vm_id);
+    // async used info
+    remove_async_used_info(vm_id);
+    // remove vm: page table / mmio / vgic will be removed with struct vm
+    vmm_remove_vm_list(vm_id);
+    // remove vm cfg
+    vm_cfg_remove_vm_entry(vm_id);
+    // remove vm unilib
+    crate::lib::unilib::unilib_fs_remove(vm_id);
+    info!("remove vm[{}] successfully", vm_id);
+}
+
+fn vmm_remove_vm_list(vm_id: usize) {
+    let vm = remove_vm(vm_id);
+    vm.clear_list();
+}
+
+pub fn vmm_cpu_remove_vcpu(vmid: usize) {
+    let vcpu = current_cpu().vcpu_array.remove_vcpu(vmid);
+    if let Some(vcpu) = vcpu {
+        // remove vcpu from scheduler
+        current_cpu().scheduler().sleep(vcpu);
+    }
+    if current_cpu().vcpu_array.vcpu_num() == 0 {
+        gicc_clear_current_irq(true);
+        cpu_idle();
+    }
+}
+
+fn vmm_remove_vcpu(vm: Vm) {
+    for idx in 0..vm.cpu_num() {
+        let vcpu = vm.vcpu(idx).unwrap();
+        // remove vcpu from VCPU_LIST
+        vcpu_remove(vcpu.clone());
+        if vcpu.phys_id() == current_cpu().id {
+            vmm_cpu_remove_vcpu(vm.id());
+        } else {
+            let m = IpiVmmMsg {
+                vmid: vm.id(),
+                event: VmmEvent::VmmRemoveCpu,
+            };
+            if !ipi_send_msg(vcpu.phys_id(), IpiType::IpiTVMM, IpiInnerMsg::VmmMsg(m)) {
+                warn!("vmm_remove_vcpu: failed to send ipi to Core {}", vcpu.phys_id());
+            }
+        }
+    }
+}
+
+fn vmm_remove_emulated_device(vm: Vm) {
+    let config = vm.config().emulated_device_list();
+    for (idx, emu_dev) in config.iter().enumerate() {
+        // mmio / vgic will be removed with struct vm
+        if !emu_dev.emu_type.removable() {
+            warn!("vmm_remove_emulated_device: cannot remove device {}", emu_dev.emu_type);
+            return;
+        }
+        emu_remove_dev(vm.id(), idx, emu_dev.base_ipa, emu_dev.length);
+        // println!(
+        //     "VM[{}] removes emulated device: id=<{}>, name=\"{}\", ipa=<0x{:x}>",
+        //     vm.id(),
+        //     idx,
+        //     emu_dev.emu_type,
+        //     emu_dev.base_ipa
+        // );
+    }
+}
+
+fn vmm_remove_passthrough_device(vm: Vm) {
+    for irq in vm.config().passthrough_device_irqs() {
+        if irq > GIC_SGIS_NUM {
+            interrupt_vm_remove(vm.clone(), irq);
+            // println!("VM[{}] remove irq {}", vm.id(), irq);
+        }
+    }
+}
+

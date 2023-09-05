@@ -1,10 +1,10 @@
+use spin::Mutex;
+
 use arm_gic::gic_v2::{GicDistributor, GicHypervisorInterface, GicCpuInterface};
 use arm_gic::GIC_LIST_REGS_NUM;
 
-use crate::arch::cpu::current_cpu;
-use crate::arch::util::bit_extract;
-
-pub const GICV_BASE: usize = 0x08040000;
+use crate::arch::current_cpu;
+use crate::arch::utils::bit_extract;
 
 pub static GICD: Option<&GicDistributor> = None;
 pub static GICC: Option<&GicCpuInterface> = None;
@@ -13,6 +13,9 @@ pub static GICH: Option<&GicHypervisorInterface> = None;
 // GICC BITS
 pub const GICC_CTLR_EN_BIT: usize = 0x1;
 pub const GICC_CTLR_EOIMODENS_BIT: usize = 1 << 9;
+
+pub static GIC_LRS_NUM: Mutex<usize> = Mutex::new(0);
+
 
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -120,4 +123,37 @@ pub fn gicc_clear_current_irq(for_hypervisor: bool) {
     }
     let irq = 0;
     current_cpu().current_irq = irq;
+}
+
+pub fn gic_lrs() -> usize {
+    *GIC_LRS_NUM.lock()
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum IrqState {
+    IrqSInactive,
+    IrqSPend,
+    IrqSActive,
+    IrqSPendActive,
+}
+
+impl IrqState {
+    pub fn num_to_state(num: usize) -> IrqState {
+        match num {
+            0 => IrqState::IrqSInactive,
+            1 => IrqState::IrqSPend,
+            2 => IrqState::IrqSActive,
+            3 => IrqState::IrqSPendActive,
+            _ => panic!("num_to_state: illegal irq state"),
+        }
+    }
+
+    pub fn to_num(&self) -> usize {
+        match self {
+            IrqState::IrqSInactive => 0,
+            IrqState::IrqSPend => 1,
+            IrqState::IrqSActive => 2,
+            IrqState::IrqSPendActive => 3,
+        }
+    }
 }

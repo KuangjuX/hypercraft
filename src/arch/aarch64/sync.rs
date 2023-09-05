@@ -8,11 +8,15 @@
 // MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
+use crate::arch::emu::{EmuContext, emu_handler};
+use crate::arch::{current_cpu, active_vm};
+use crate::arch::exception::*;
+use crate::arch::psci::smc_guest_handler;
+use crate::arch::hvc::hvc_guest_handler;
 
 pub const HVC_RETURN_REG: usize = 0;
 
 pub fn data_abort_handler() {
-    // let time0 = time_current_us();
     let emu_ctx = EmuContext {
         address: exception_fault_addr(),
         width: exception_data_abort_access_width(),
@@ -26,27 +30,23 @@ pub fn data_abort_handler() {
     if !exception_data_abort_handleable() {
         panic!(
             "Core {} data abort not handleable 0x{:x}, esr 0x{:x}",
-            current_cpu().id,
+            current_cpu().cpu_id,
             exception_fault_addr(),
             exception_esr()
         );
     }
 
     if !exception_data_abort_is_translate_fault() {
-        if exception_data_abort_is_permission_fault() {
-            migrate_data_abort_handler(&emu_ctx);
-            return;
-        } else {
-            panic!(
-                "Core {} data abort is not translate fault 0x{:x}",
-                current_cpu().id,
-                exception_fault_addr(),
-            );
-        }
+        // No migrate need
+        panic!(
+            "Core {} data abort is not translate fault 0x{:x}",
+            current_cpu().cpu_id,
+            exception_fault_addr(),
+        );           
     }
     if !emu_handler(&emu_ctx) {
         active_vm().unwrap().show_pagetable(emu_ctx.address);
-        println!(
+        info!(
             "write {}, width {}, reg width {}, addr {:x}, iss {:x}, reg idx {}, reg val 0x{:x}, esr 0x{:x}",
             exception_data_abort_access_is_write(),
             emu_ctx.width,
@@ -83,7 +83,6 @@ pub fn smc_handler() {
 }
 
 pub fn hvc_handler() {
-    // let time_start = timer_arch_get_counter();
     let x0 = current_cpu().get_gpr(0);
     let x1 = current_cpu().get_gpr(1);
     let x2 = current_cpu().get_gpr(2);
@@ -105,12 +104,4 @@ pub fn hvc_handler() {
             current_cpu().set_gpr(HVC_RETURN_REG, usize::MAX);
         }
     }
-    // let time_end = timer_arch_get_counter();
-    // println!(
-    //     "hvc fid 0x{:x} event 0x{:x} counter {}, freq {:x}",
-    //     hvc_type,
-    //     event,
-    //     time_end - time_start,
-    //     timer_arch_get_frequency()
-    // );
 }

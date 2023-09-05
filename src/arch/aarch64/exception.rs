@@ -13,8 +13,8 @@ use core::arch::global_asm;
 use tock_registers::interfaces::*;
 
 use crate::mrs;
-use crate::arch::ContextFrame;
-use crate::arch::cpu::{current_cpu, active_vm_id};
+use crate::arch::{ContextFrame, current_cpu};
+use crate::arch::cpu::active_vm_id;
 use crate::arch::interrupt::interrupt_handler;
 use crate::arch::gic::{gicc_clear_current_irq, gicc_get_current_irq};
 use crate::arch::sync::{data_abort_handler, hvc_handler, smc_handler};
