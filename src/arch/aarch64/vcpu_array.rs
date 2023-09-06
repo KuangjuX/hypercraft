@@ -10,8 +10,10 @@
 
 use alloc::slice::{Iter, IterMut};
 
-use crate::arch::ContextFrame;
+use crate::arch::{ContextFrame, current_cpu};
 use crate::arch::vcpu::Vcpu;
+use crate::arch::vm::VM_NUM_MAX;
+use crate::arch::interrupt::interrupt_cpu_enable;
 
 pub struct VcpuArray {
     array: [Option<Vcpu>; VM_NUM_MAX],
@@ -50,12 +52,12 @@ impl VcpuArray {
         if self.array[vm_id].is_some() {
             panic!("self.array[vm_id].is_some()");
         }
-        vcpu.set_phys_id(current_cpu().id);
+        vcpu.set_phys_id(current_cpu().cpu_id);
         info!(
             "append_vcpu: append VM[{}] vcpu {} on core {}",
             vm_id,
             vcpu.id(),
-            current_cpu().id
+            current_cpu().cpu_id
         );
         self.array[vm_id] = Some(vcpu);
         self.len += 1;
@@ -78,7 +80,7 @@ impl VcpuArray {
             None => panic!(
                 "no vcpu from vm[{}] exist in Core[{}] vcpu_pool",
                 vm_id,
-                current_cpu().id
+                current_cpu().cpu_id
             ),
         }
     }
@@ -94,7 +96,7 @@ impl VcpuArray {
 
 // Todo: add config for base slice
 pub fn cpu_sched_init() {
-    match PLAT_DESC.cpu_desc.core_list[current_cpu().id].sched {
+    match PLAT_DESC.cpu_desc.core_list[current_cpu().cpu_id].sched {
         SchedRule::RoundRobin => {
             info!("cpu[{}] init Round Robin Scheduler", current_cpu().id);
             current_cpu().sched = SchedType::SchedRR(SchedulerRR::new(1));

@@ -7,6 +7,8 @@ pub const GICC_BASE: usize = 0x08010000;
 pub const GICH_BASE: usize = 0x08030000;
 pub const GICV_BASE: usize = 0x08040000;
 
+pub const SHARE_MEM_BASE: usize = 0x7_0000_0000;
+
 pub const UART_0_ADDR: usize = 0x9000000;
 pub const UART_1_ADDR: usize = 0x9100000;
 pub const UART_2_ADDR: usize = 0x9110000;

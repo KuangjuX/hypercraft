@@ -9,7 +9,6 @@
 // See the Mulan PSL v2 for more details.
 
 use alloc::collections::BTreeMap;
-use page_table::PageSize;
 use core::mem::size_of;
 
 use spin::Mutex;
@@ -22,11 +21,11 @@ use crate::arch::utils::trace;
 use crate::arch::interrupt::interrupt_vm_inject;
 use crate::arch::ivc::ivc_update_mq;
 use crate::arch::{current_cpu, active_vm, active_vm_id, memcpy_safe};
+use crate::memory::PAGE_SIZE_4K;
 
 pub static VM_STATE_FLAG: Mutex<usize> = Mutex::new(0);
 
 pub static SHARE_MEM_LIST: Mutex<BTreeMap<usize, usize>> = Mutex::new(BTreeMap::new());
-
 
 // If succeed, return 0.
 const HVC_FINISH: usize = 0;
@@ -334,8 +333,8 @@ pub fn hvc_send_msg_to_vm(vm_id: usize, guest_msg: &HvcGuestMsg) -> bool {
     let arg_addr = vm_interface_ivc_arg(vm_id);
 
     if arg_ptr_addr != 0 {
-        arg_ptr_addr += PageSize::Size4K as usize / VM_NUM_MAX;
-        if arg_ptr_addr - arg_addr >= PageSize::Size4K as usize  {
+        arg_ptr_addr += PAGE_SIZE_4K as usize / VM_NUM_MAX;
+        if arg_ptr_addr - arg_addr >= PAGE_SIZE_4K as usize  {
             vm_interface_set_ivc_arg_ptr(vm_id, arg_addr);
             target_addr = arg_addr;
         } else {
