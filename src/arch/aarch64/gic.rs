@@ -1,4 +1,5 @@
 use spin::Mutex;
+use spinlock::SpinNoIrq;
 
 use arm_gic::gic_v2::{GicDistributor, GicHypervisorInterface, GicCpuInterface};
 use arm_gic::GIC_LIST_REGS_NUM;
@@ -6,7 +7,7 @@ use arm_gic::GIC_LIST_REGS_NUM;
 use crate::arch::current_cpu;
 use crate::arch::utils::bit_extract;
 
-pub static GICD: Option<&GicDistributor> = None;
+pub static GICD: Option<&SpinNoIrq<GicDistributor>> = None;
 pub static GICC: Option<&GicCpuInterface> = None;
 pub static GICH: Option<&GicHypervisorInterface> = None;
 
@@ -162,12 +163,12 @@ pub fn interrupt_arch_enable(int_id: usize, en: bool) {
     let gicd = GICD.unwrap();
     let cpu_id = current_cpu().cpu_id;
     if en {
-        gicd.set_priority(int_id, 0x7f);
-        gicd.set_target_cpu(int_id, 1 << cpu_id);
+        gicd.lock().set_priority(int_id, 0x7f);
+        gicd.lock().set_target_cpu(int_id, 1 << cpu_id);
 
-        gicd.set_enable(int_id, en);
+        gicd.lock().set_enable(int_id, en);
     } else {
-        gicd.set_enable(int_id, en);
+        gicd.lock().set_enable(int_id, en);
     }
 }
 

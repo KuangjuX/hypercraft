@@ -158,14 +158,14 @@ fn ipi_send(target_id: usize, msg: IpiMessage) -> bool {
         info!("ipi_send: core {} not exist", target_id);
         return false;
     }
-
+    if GICD.is_none() {
+        warn!("No available GICD in ipi_send");
+        return false;
+    }
+    let gicd = GICD.unwrap();
     let mut cpu_interface_list = CPU_INTERFACE_LIST.lock();
     cpu_interface_list[target_id].msg_queue.push(msg);
-    if let Some(gicd) = GICD {
-        gicd.set_sgi(target_id, IPI_IRQ_NUM);
-    } else {
-        warn!("No available gicd in ")
-    }
+    gicd.lock().set_sgi(target_id, IPI_IRQ_NUM);
 
     true
 }

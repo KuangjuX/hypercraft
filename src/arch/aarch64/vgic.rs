@@ -812,8 +812,8 @@ impl Vgic {
             } else {
                 lr |= (state & 0b11) << 28;
             }
-            if gicd.get_state(int_id) != 2 {
-                gicd.set_state(int_id, 2, current_cpu().cpu_id);
+            if gicd.lock().get_state(int_id) != 2 {
+                gicd.lock().set_state(int_id, 2, current_cpu().cpu_id);
             }
         } else if int_id < GIC_SGIS_NUM {
             if (state & 2) != 0 {
@@ -910,7 +910,7 @@ impl Vgic {
                             self.route(vcpu.clone(), interrupt.clone());
                         }
                         if interrupt.hw() {
-                            gicd.set_enable(interrupt.id() as usize, en);
+                            gicd.lock().set_enable(interrupt.id() as usize, en);
                         }
                     }
                     vgic_int_yield_owner(vcpu, interrupt.clone());
@@ -974,7 +974,7 @@ impl Vgic {
                 let state = interrupt.state().to_num();
                 if interrupt.hw() {
                     let vgic_int_id = interrupt.id() as usize;
-                    gicd.set_state(vgic_int_id, if state == 1 { 2 } else { state }, current_cpu().cpu_id)
+                    gicd.lock().set_state(vgic_int_id, if state == 1 { 2 } else { state }, current_cpu().cpu_id)
                 }
                 self.route(vcpu.clone(), interrupt.clone());
                 vgic_int_yield_owner(vcpu, interrupt.clone());
@@ -1035,7 +1035,7 @@ impl Vgic {
                 let state = interrupt.state().to_num();
                 if interrupt.hw() {
                     let vgic_int_id = interrupt.id() as usize;
-                    gicd.set_state(vgic_int_id, if state == 1 { 2 } else { state }, current_cpu().cpu_id)
+                    gicd.lock().set_state(vgic_int_id, if state == 1 { 2 } else { state }, current_cpu().cpu_id)
                 }
                 self.route(vcpu.clone(), interrupt.clone());
                 vgic_int_yield_owner(vcpu, interrupt.clone());
@@ -1073,7 +1073,7 @@ impl Vgic {
             if vgic_int_get_owner(vcpu.clone(), interrupt.clone()) {
                 interrupt.set_cfg(cfg);
                 if interrupt.hw() {
-                    gicd.set_icfgr(interrupt.id() as usize, cfg);
+                    gicd.lock().set_icfgr(interrupt.id() as usize, cfg);
                 }
                 vgic_int_yield_owner(vcpu, interrupt.clone());
             } else {
@@ -1183,7 +1183,7 @@ impl Vgic {
                         self.route(vcpu.clone(), interrupt.clone());
                     }
                     if interrupt.hw() {
-                        gicd.set_priority(interrupt.id() as usize, prio);
+                        gicd.lock().set_priority(interrupt.id() as usize, prio);
                     }
                 }
                 vgic_int_yield_owner(vcpu, interrupt.clone());
@@ -1238,7 +1238,7 @@ impl Vgic {
                         }
                     }
                     if interrupt.hw() {
-                        gicd.set_target_cpu(interrupt.id() as usize, ptrgt as u8);
+                        gicd.lock().set_target_cpu(interrupt.id() as usize, ptrgt as u8);
                     }
                     if vgic_get_state(interrupt.clone()) != 0 {
                         self.route(vcpu.clone(), interrupt.clone());
@@ -1889,7 +1889,7 @@ impl Vgic {
                 self.update_int_list(vcpu.clone(), int.clone());
 
                 if vgic_int_is_hw(int.clone()) {
-                    gicd.set_active(int.id() as usize, false);
+                    gicd.lock().set_active(int.id() as usize, false);
                 } else {
                     if int.state().to_num() & 1 != 0 {
                         self.add_lr(vcpu, int);
@@ -2332,9 +2332,9 @@ pub fn emu_intc_init(vm: Vm, emu_dev_id: usize) {
     let vgic = Arc::new(Vgic::default());
 
     let mut vgicd = vgic.vgicd.lock();
-    vgicd.typer = (gicd.get_typer() & GICD_TYPER_CPUNUM_MSK as u32)
+    vgicd.typer = (gicd.lock().get_typer() & GICD_TYPER_CPUNUM_MSK as u32)
         | (((vm.cpu_num() - 1) << GICD_TYPER_CPUNUM_OFF) & GICD_TYPER_CPUNUM_MSK) as u32;
-    vgicd.iidr = gicd.get_iidr();
+    vgicd.iidr = gicd.lock().get_iidr();
 
     for i in 0..SPI_RANGE.count() {
         vgicd.interrupts.push(VgicInt::new(i));

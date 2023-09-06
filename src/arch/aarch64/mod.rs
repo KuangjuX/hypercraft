@@ -27,7 +27,7 @@ pub use ipi::ipi_irq_handler;
 pub use vgic::maintenance_irq_handler;
 pub use timer::timer_irq_handler;
 pub use interrupt::{interrupt_handler, interrupt_init};
-pub use gic::{GICC, GICD, GICH};
+pub use gic::{GICC, GICD, GICH, interrupt_arch_enable};
 
 pub use config::*;
 

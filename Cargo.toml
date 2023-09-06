@@ -20,6 +20,7 @@ fdt = {version = "0.1.5"}
 page_table = { path = "../page_table" }
 page_table_entry = { path = "../page_table_entry" }
 arm_gic = { path = "../arm_gic" }
+spinlock = { path = "../spinlock" }
 
 [dependencies.tock-registers]
 version = "0.7.0"
