@@ -12,6 +12,8 @@ use spin::Mutex;
 use tock_registers::interfaces::*;
 use crate::msr;
 
+use crate::arch::current_cpu;
+
 const CTL_IMASK: usize = 1 << 1;
 
 pub static TIMER_FREQ: Mutex<usize> = Mutex::new(0);
@@ -72,4 +74,20 @@ pub fn sleep(us: usize) {
     while time_current_us() < end {
         core::hint::spin_loop();
     }
+}
+
+fn timer_notify_after(ms: usize) {
+    if ms == 0 {
+        return;
+    }
+    timer_arch_set(ms);
+    timer_arch_enable_irq();
+}
+
+pub fn timer_irq_handler() {
+    timer_arch_disable_irq();
+    current_cpu().scheduler().do_schedule();
+
+    timer_notify_after(1);
+    info!("timer_irq_handler")
 }

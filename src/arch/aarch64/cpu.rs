@@ -6,9 +6,8 @@ use crate::arch::vcpu::Vcpu;
 use crate::arch::vcpu_array::VcpuArray;
 use crate::arch::vm::Vm;
 use crate::arch::interrupt::cpu_interrupt_unmask;
-
-use crate::arch::ContextFrame;
-use crate::HyperCraftHal;
+use crate::arch::psci::power_arch_init;
+use crate::arch::{ContextFrame, Platform, PlatOperation, PLAT_DESC};
 use crate::traits::ContextFrameTrait;
 
 /// need to move to a suitable file?
@@ -205,7 +204,7 @@ impl Cpu{
     pub fn schedule_to(&mut self, next_vcpu: Vcpu) {
         if let Some(prev_vcpu) = &self.active_vcpu {
             if prev_vcpu.vm_id() != next_vcpu.vm_id() {
-                // println!(
+                // info!(
                 //     "next vm{} vcpu {}, prev vm{} vcpu {}",
                 //     next_vcpu.vm_id(),
                 //     next_vcpu.id(),
@@ -223,7 +222,7 @@ impl Cpu{
         next_vcpu.context_vm_restore();
         // restore vm's Stage2 MMU context
         let vttbr = (next_vcpu.vm_id() << 48) | next_vcpu.vm_pt_dir();
-        // println!("vttbr {:#x}", vttbr);
+        // info!("vttbr {:#x}", vttbr);
         // TODO: replace the arch related expr
         unsafe {
             core::arch::asm!("msr VTTBR_EL2, {0}", "isb", in(reg) vttbr);
@@ -278,33 +277,32 @@ pub fn active_vm_ncpu() -> usize {
         None => 0,
     }
 }
-/* 
+
 pub fn cpu_init() {
-    let cpu_id = current_cpu().id;
+    let cpu_id = current_cpu().cpu_id;
     if cpu_id == 0 {
-        use crate::arch::power_arch_init;
-        use crate::board::{Platform, PlatOperation};
         Platform::power_on_secondary_cores();
         power_arch_init();
-        cpu_if_init();
+        cpu_interface_init();
     }
 
     let state = CpuState::CpuIdle;
     current_cpu().cpu_state = state;
     let sp = current_cpu().stack.as_ptr() as usize + CPU_STACK_SIZE;
     let size = core::mem::size_of::<ContextFrame>();
-    current_cpu().set_ctx((sp - size) as *mut _);
-    println!("Core {} init ok", cpu_id);
+    current_cpu().set_context_addr((sp - size) as *mut _);
+    info!("Core {} init ok", cpu_id);
 
-    crate::lib::barrier();
-    // println!("after barrier cpu init");
-    use crate::board::PLAT_DESC;
+    // todo() set barrier for cpu init
+    // crate::lib::barrier();
+    // info!("after barrier cpu init");
+
     if cpu_id == 0 {
-        println!("Bring up {} cores", PLAT_DESC.cpu_desc.num);
-        println!("Cpu init ok");
+        info!("Bring up {} cores", PLAT_DESC.cpu_desc.num);
+        info!("Cpu init ok");
     }
 }
-*/
+
 
 pub fn cpu_idle() -> ! {
     let state = CpuState::CpuIdle;

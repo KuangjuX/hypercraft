@@ -20,7 +20,8 @@ use crate::arch::vm::*;
 use crate::arch::emu::EmuDeviceType;
 use crate::arch::hvc::HVC_IRQ;
 
-use crate::arch::{GICD_BASE, GICV_BASE, GICC_BASE, UART_0_ADDR};
+use crate::arch::{Platform, PlatOperation};
+//::{GICD_BASE, GICV_BASE, GICC_BASE, UART_0_ADDR};
 
 /* 
 use super::{
@@ -37,7 +38,7 @@ pub fn mvm_config_init() {
     let emu_dev_config = vec![
         VmEmulatedDeviceConfig {
             name: Some(String::from("vgicd")),
-            base_ipa: GICD_BASE,
+            base_ipa: Platform::GICD_BASE,
             length: 0x1000,
             irq_id: 0,
             cfg_list: Vec::new(),
@@ -70,8 +71,8 @@ pub fn mvm_config_init() {
     // vm0 passthrough
     let mut pt_dev_config: VmPassthroughDeviceConfig = VmPassthroughDeviceConfig::default();
     pt_dev_config.regions = vec![
-        PassthroughRegion { ipa: UART_0_ADDR, pa: UART_0_ADDR, length: 0x1000, dev_property: true },
-        PassthroughRegion { ipa: GICC_BASE, pa: GICV_BASE, length: 0x2000, dev_property: true },
+        PassthroughRegion { ipa: Platform::UART_0_ADDR, pa: Platform::UART_0_ADDR, length: 0x1000, dev_property: true },
+        PassthroughRegion { ipa: Platform::GICC_BASE, pa: Platform::GICV_BASE, length: 0x2000, dev_property: true },
         // pass-througn virtio blk/net
         PassthroughRegion { ipa: 0x0a003000, pa: 0x0a003000, length: 0x1000, dev_property: true },
     ];

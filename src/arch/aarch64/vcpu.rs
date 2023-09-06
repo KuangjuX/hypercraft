@@ -18,7 +18,7 @@ use cortex_a::registers::*;
 use tock_registers::interfaces::*;
  
 
-use crate::arch::{ContextFrame, memcpy_safe, current_cpu, GICV_BASE, active_vm_id, active_vcpu_id};
+use crate::arch::{ContextFrame, memcpy_safe, current_cpu, active_vm_id, active_vcpu_id};
 use crate::arch::contextFrame::VmContext;
 use crate::traits::ContextFrameTrait;
 use crate::arch::vm::{Vm, VmState, vm_interface_set_state};

@@ -19,15 +19,19 @@ mod vmPages;
 mod manageVm;
 mod gic;
 mod ivc;
-mod platform_qemu;
+mod platform;
 mod timer;
 
 pub use cpu::{current_cpu, CPU_INTERFACE_LIST, active_vm, active_vcpu_id, active_vm_id};
-pub use ipi::IPI_HANDLER_LIST;
+pub use ipi::ipi_irq_handler;
+pub use vgic::maintenance_irq_handler;
+pub use timer::timer_irq_handler;
+pub use interrupt::{interrupt_handler, interrupt_init};
 pub use gic::{GICC, GICD, GICH};
-pub use interrupt::interrupt_handler;
+
 pub use config::*;
-pub use platform_qemu::*;
+
+pub use platform::{PLAT_DESC, QemuPlatform as Platform, PlatOperation};
 
 pub use page_table::PageSize;
 

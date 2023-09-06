@@ -25,7 +25,7 @@ use crate::arch::ipi::{
     IpiInitcMessage, InitcEvent, ipi_intra_broadcast_msg, IpiType, IpiInnerMsg,
     ipi_send_msg, IpiMessage
 };
-use crate::arch::GICD_BASE;
+use crate::arch::{PlatOperation, Platform};
 use crate::arch::emu::{EmuContext, EmuDevs};
 use crate::arch::cpu::active_vm_ncpu;
 use crate::arch::vcpu::{restore_vcpu_gic, save_vcpu_gic, Vcpu};
@@ -1622,7 +1622,7 @@ impl Vgic {
             }
         };
 
-        if bit_extract(emu_ctx.address, 0, 12) == bit_extract(GICD_BASE + 0x0f00, 0, 12) {
+        if bit_extract(emu_ctx.address, 0, 12) == bit_extract(Platform::GICD_BASE + 0x0f00, 0, 12) {
             if emu_ctx.write {
                 let sgir_trglstflt = bit_extract(val, 24, 2);
                 let mut trgtlist = 0;
@@ -2223,9 +2223,9 @@ pub fn partial_passthrough_intc_handler(_emu_dev_id: usize, emu_ctx: &EmuContext
     if emu_ctx.write {
         // todo: add offset match
         let val = current_cpu().get_gpr(emu_ctx.reg);
-        ptr_read_write(GICD_BASE + 0x8_0000_0000 + offset, emu_ctx.width, val, false);
+        ptr_read_write(Platform::GICD_BASE + 0x8_0000_0000 + offset, emu_ctx.width, val, false);
     } else {
-        let res = ptr_read_write(GICD_BASE + 0x8_0000_0000 + offset, emu_ctx.width, 0, true);
+        let res = ptr_read_write(Platform::GICD_BASE + 0x8_0000_0000 + offset, emu_ctx.width, 0, true);
         current_cpu().set_gpr(emu_ctx.reg, res);
     }
 
@@ -2398,5 +2398,45 @@ pub fn vgic_set_hw_int(vm: Vm, int_id: usize) {
             }
             None => {}
         }
+    }
+}
+
+
+pub fn maintenance_irq_handler() {
+    if GICH.is_none() {
+        warn!("No available GICH in maintenance_irq_handler");
+        return;
+    }
+    let gich = GICH.unwrap();
+    let misr = gich.get_misr();
+    let vm = match active_vm() {
+        Some(vm) => vm,
+        None => {
+            panic!("maintenance_irq_handler: current vcpu.vm is None");
+        }
+    };
+    let vgic = vm.vgic();
+
+    if misr & 1 != 0 {
+        vgic.handle_trapped_eoir(current_cpu().active_vcpu.clone().unwrap());
+        info!("misr 1")
+    }
+
+    if misr & (1 << 3) != 0 {
+        vgic.refill_lrs(current_cpu().active_vcpu.clone().unwrap());
+        info!("misr 3")
+    }
+
+    if misr & (1 << 2) != 0 {
+         
+        let mut hcr = gich.get_hcr();
+        while hcr & (0b11111 << 27) != 0 {
+            vgic.eoir_highest_spilled_active(current_cpu().active_vcpu.clone().unwrap());
+            hcr -= 1 << 27;
+            gich.set_hcr(hcr);
+            hcr = gich.get_hcr();
+        }
+        
+        info!("misr 2")
     }
 }

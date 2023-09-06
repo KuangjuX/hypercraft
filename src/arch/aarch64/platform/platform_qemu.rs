@@ -1,3 +1,4 @@
+/* 
 use core::hint::spin_loop;
 
 use crate::arch::psci::{power_arch_sys_reset, power_arch_sys_shutdown};
@@ -31,7 +32,26 @@ pub fn sys_shutdown() -> ! {
         spin_loop();
     }
 }
-/* 
+
+pub fn power_on_secondary_cores() {
+    use super::PLAT_DESC;
+    extern "C" {
+        fn _image_start();
+    }
+    for i in 1..PLAT_DESC.cpu_desc.num {
+        Self::cpu_on(PLAT_DESC.cpu_desc.core_list[i].mpidr, _image_start as usize, 0);
+    }
+}
+*/
+use super::platform_common::{
+    PlatOperation, PlatformConfig, PlatCpuConfig, PlatCpuCoreConfig, PlatMemRegion, 
+    PlatMemoryConfig, ARM_CORTEX_A57, SchedRule,
+};
+
+// use crate::board::SchedRule::RoundRobin;
+// use crate::device::ARM_CORTEX_A57;
+// use crate::driver::{read, write};
+
 pub struct QemuPlatform;
 
 impl PlatOperation for QemuPlatform {
@@ -44,7 +64,10 @@ impl PlatOperation for QemuPlatform {
 
     const HYPERVISOR_UART_BASE: usize = Self::UART_0_ADDR;
 
-    
+    const GICD_BASE: usize = 0x08000000;
+    const GICC_BASE: usize = 0x08010000;
+    const GICH_BASE: usize = 0x08030000;
+    const GICV_BASE: usize = 0x08040000;
 
     const SHARE_MEM_BASE: usize = 0x7_0000_0000;
 
@@ -57,14 +80,15 @@ impl PlatOperation for QemuPlatform {
     const DISK_PARTITION_1_SIZE: usize = 8192000;
     const DISK_PARTITION_2_SIZE: usize = 8192000;
 
-    fn cpuid_to_cpuif(cpuid: usize) -> usize {
+    fn cpuid_to_cpuinterface(cpuid: usize) -> usize {
         cpuid
     }
 
-    fn cpuif_to_cpuid(cpuif: usize) -> usize {
-        cpuif
+    fn cpuinterface_to_cpuid(cpuinterface: usize) -> usize {
+        cpuinterface
     }
 
+    /* 
     fn blk_init() {
         info!("Platform block driver init ok");
         crate::driver::virtio_blk_init();
@@ -77,6 +101,7 @@ impl PlatOperation for QemuPlatform {
     fn blk_write(sector: usize, count: usize, buf: usize) {
         write(sector, count, buf);
     }
+    */
 }
 
 pub static PLAT_DESC: PlatformConfig = PlatformConfig {
@@ -86,22 +111,22 @@ pub static PLAT_DESC: PlatformConfig = PlatformConfig {
             PlatCpuCoreConfig {
                 name: ARM_CORTEX_A57,
                 mpidr: 0,
-                sched: RoundRobin,
+                sched: SchedRule::RoundRobin,
             },
             PlatCpuCoreConfig {
                 name: ARM_CORTEX_A57,
                 mpidr: 1,
-                sched: RoundRobin,
+                sched: SchedRule::RoundRobin,
             },
             PlatCpuCoreConfig {
                 name: ARM_CORTEX_A57,
                 mpidr: 2,
-                sched: RoundRobin,
+                sched: SchedRule::RoundRobin,
             },
             PlatCpuCoreConfig {
                 name: ARM_CORTEX_A57,
                 mpidr: 3,
-                sched: RoundRobin,
+                sched: SchedRule::RoundRobin,
             },
         ],
     },
@@ -119,19 +144,4 @@ pub static PLAT_DESC: PlatformConfig = PlatformConfig {
         ],
         base: 0x40000000,
     },
-    arch_desc: ArchDesc {
-        gic_desc: GicDesc {
-            gicd_addr: Platform::GICD_BASE,
-            gicc_addr: Platform::GICC_BASE,
-            gich_addr: Platform::GICH_BASE,
-            gicv_addr: Platform::GICV_BASE,
-            maintenance_int_id: 25,
-        },
-        smmu_desc: SmmuDesc {
-            base: 0,
-            interrupt_id: 0,
-            global_mask: 0,
-        },
-    },
 };
-*/

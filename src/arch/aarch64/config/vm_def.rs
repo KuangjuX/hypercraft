@@ -26,10 +26,9 @@ use super::{
     AddrRegions, DtbDevType,
 };
 */
-
 use crate::arch::vmConfig::*;
 use crate::arch::emu::*;
-use crate::arch::GICV_BASE;
+use crate::arch::{Platform, PlatOperation};
 use crate::arch::interrupt::INTERRUPT_IRQ_GUEST_TIMER;
 
 pub fn init_tmp_config_for_vm1() {
@@ -84,7 +83,7 @@ pub fn init_tmp_config_for_vm1() {
     pt_dev_config.regions = vec![
         PassthroughRegion {
             ipa: 0x8010000,
-            pa: GICV_BASE,
+            pa: Platform::GICV_BASE,
             length: 0x2000,
             dev_property: true,
         },
@@ -216,7 +215,7 @@ pub fn init_tmp_config_for_vm2() {
         // },
         PassthroughRegion {
             ipa: 0x8010000,
-            pa: GICV_BASE,
+            pa: Platform::GICV_BASE,
             length: 0x2000,
             dev_property: true,
         },

@@ -110,9 +110,9 @@ pub static IPI_HANDLER_LIST: Mutex<Vec<IpiHandler>> = Mutex::new(Vec::new());
 pub fn ipi_irq_handler() {
     // println!("ipi handler");
     let cpu_id = current_cpu().cpu_id;
-    let mut cpu_if_list = CPU_INTERFACE_LIST.lock();
-    let mut msg: Option<IpiMessage> = cpu_if_list[cpu_id].pop();
-    drop(cpu_if_list);
+    let mut cpu_interface_list = CPU_INTERFACE_LIST.lock();
+    let mut msg: Option<IpiMessage> = cpu_interface_list[cpu_id].pop();
+    drop(cpu_interface_list);
 
     while !msg.is_none() {
         let ipi_msg = msg.unwrap();
@@ -129,8 +129,8 @@ pub fn ipi_irq_handler() {
             // println!("ipi type is {:#?}", ipi_msg.ipi_type);
             handler(&ipi_msg);
         }
-        let mut cpu_if_list = CPU_INTERFACE_LIST.lock();
-        msg = cpu_if_list[cpu_id].pop();
+        let mut cpu_interface_list = CPU_INTERFACE_LIST.lock();
+        msg = cpu_interface_list[cpu_id].pop();
     }
 }
 
@@ -159,8 +159,8 @@ fn ipi_send(target_id: usize, msg: IpiMessage) -> bool {
         return false;
     }
 
-    let mut cpu_if_list = CPU_INTERFACE_LIST.lock();
-    cpu_if_list[target_id].msg_queue.push(msg);
+    let mut cpu_interface_list = CPU_INTERFACE_LIST.lock();
+    cpu_interface_list[target_id].msg_queue.push(msg);
     if let Some(gicd) = GICD {
         gicd.set_sgi(target_id, IPI_IRQ_NUM);
     } else {

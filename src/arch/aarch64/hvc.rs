@@ -489,3 +489,4 @@ pub fn send_hvc_ipi(src_vmid: usize, trgt_vmid: usize, fid: usize, event: usize,
         );
     }
 }
+
