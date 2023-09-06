@@ -330,16 +330,16 @@ fn hvc_unilib_handler(event: usize, x0: usize, x1: usize, x2: usize) -> Result<u
 
 pub fn hvc_send_msg_to_vm(vm_id: usize, guest_msg: &HvcGuestMsg) -> bool {
     let mut target_addr = 0;
-    let mut arg_ptr_addr = vm_if_ivc_arg_ptr(vm_id);
-    let arg_addr = vm_if_ivc_arg(vm_id);
+    let mut arg_ptr_addr = vm_interface_ivc_arg_ptr(vm_id);
+    let arg_addr = vm_interface_ivc_arg(vm_id);
 
     if arg_ptr_addr != 0 {
         arg_ptr_addr += PageSize::Size4K as usize / VM_NUM_MAX;
         if arg_ptr_addr - arg_addr >= PageSize::Size4K as usize  {
-            vm_if_set_ivc_arg_ptr(vm_id, arg_addr);
+            vm_interface_set_ivc_arg_ptr(vm_id, arg_addr);
             target_addr = arg_addr;
         } else {
-            vm_if_set_ivc_arg_ptr(vm_id, arg_ptr_addr);
+            vm_interface_set_ivc_arg_ptr(vm_id, arg_ptr_addr);
             target_addr = arg_ptr_addr;
         }
     }
@@ -382,7 +382,7 @@ pub fn hvc_send_msg_to_vm(vm_id: usize, guest_msg: &HvcGuestMsg) -> bool {
         }
     };
 
-    let cpu_trgt = vm_if_get_cpu_id(vm_id);
+    let cpu_trgt = vm_interface_get_cpu_id(vm_id);
     if cpu_trgt != current_cpu().cpu_id {
         // info!("cpu {} send hvc msg to cpu {}", current_cpu().id, cpu_trgt);
         let ipi_msg = IpiHvcMsg {

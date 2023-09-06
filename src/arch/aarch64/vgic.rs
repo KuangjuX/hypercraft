@@ -638,6 +638,8 @@ impl Vgic {
             warn!("No available GICH remove_lr");
             return false;
         }
+
+        let gich = GICH.unwrap();
         let int_lr = interrupt.lr();
         let int_id = interrupt.id() as usize;
         let vcpu_id = vcpu.id();
@@ -647,7 +649,6 @@ impl Vgic {
         }
 
         let mut lr_val = 0;
-        let Some(gich) = GICH;
         if let Some(lr) = gich_get_lr(interrupt.clone()) {
             gich.set_lr_by_idx(int_lr as usize, 0);
             lr_val = lr;
@@ -688,7 +689,7 @@ impl Vgic {
             return false;
         }
 
-        let Some(gich) = GICH;
+        let gich = GICH.unwrap();
         let gic_lrs = gic_lrs();
         let mut lr_ind = None;
 
@@ -771,8 +772,8 @@ impl Vgic {
             warn!("No available GICD or GICH in write_lr");
             return
         }
-        let Some(gicd) = GICD;
-        let Some(gich) = GICH;
+        let gicd = GICD.unwrap();
+        let gich = GICH.unwrap();
         let vcpu_id = vcpu.id();
         let int_id = interrupt.id() as usize;
         let int_prio = interrupt.prio();
@@ -896,7 +897,7 @@ impl Vgic {
             warn!("No available GICD in set_enable");
             return;
         }
-        let Some(gicd) = GICD;
+        let gicd = GICD.unwrap();
         match self.get_int(vcpu.clone(), int_id) {
             Some(interrupt) => {
                 let interrupt_lock = interrupt.lock.lock();
@@ -954,7 +955,7 @@ impl Vgic {
             return;
         }
 
-        let Some(gicd) = GICD;
+        let gicd = GICD.unwrap();
         let interrupt_option = self.get_int(vcpu.clone(), bit_extract(int_id, 0, 10));
 
         if let Some(interrupt) = interrupt_option {
@@ -1016,7 +1017,7 @@ impl Vgic {
             warn!("No available GICD in set_active");
             return;
         }
-        let Some(gicd) = GICD;
+        let gicd = GICD.unwrap();
 
         let interrupt_option = self.get_int(vcpu.clone(), bit_extract(int_id, 0, 10));
         if let Some(interrupt) = interrupt_option {
@@ -1064,7 +1065,7 @@ impl Vgic {
             warn!("No available GICD in set_icfgr");
             return;
         }
-        let Some(gicd) = GICD;
+        let gicd = GICD.unwrap();
 
         let interrupt_option = self.get_int(vcpu.clone(), int_id);
         if let Some(interrupt) = interrupt_option {
@@ -1166,7 +1167,7 @@ impl Vgic {
             warn!("No available GICD in set_priority");
             return;
         }
-        let Some(gicd) = GICD;
+        let gicd = GICD.unwrap();
 
         let interrupt_option = self.get_int(vcpu.clone(), int_id);
         prio &= 0xf0; // gic-400 only allows 4 priority bits in non-secure state
@@ -1221,7 +1222,7 @@ impl Vgic {
             warn!("No available GICD in set_target_cpu");
             return;
         }
-        let Some(gicd) = GICD;
+        let gicd = GICD.unwrap();
 
         let interrupt_option = self.get_int(vcpu.clone(), int_id);
         if let Some(interrupt) = interrupt_option {
@@ -1296,7 +1297,7 @@ impl Vgic {
             warn!("No available GICH in emu_ctrl_access");
             return;
         }
-        let Some(gich) = GICH;
+        let gich = GICH.unwrap();
 
         if emu_ctx.write {
             let prev_ctlr = self.vgicd_ctlr();
@@ -1747,7 +1748,7 @@ impl Vgic {
             return;
         }
 
-        let Some(gich) = GICH;
+        let gich = GICH.unwrap();
         let gic_lrs = gic_lrs();
         let mut lr_idx_opt = bitmap_find_nth(
             gich.get_eisr_by_idx(0) as usize | (( gich.get_eisr_by_idx(1) as usize) << 32),
@@ -1800,7 +1801,7 @@ impl Vgic {
             return;
         }
 
-        let Some(gich) = GICH;
+        let gich = GICH.unwrap();
         let gic_lrs = gic_lrs();
         let mut has_pending = false;
 
@@ -1875,7 +1876,7 @@ impl Vgic {
             return;
         }
 
-        let Some(gicd) = GICD;
+        let gicd = GICD.unwrap();
 
         let interrupt = self.int_list_head(vcpu.clone(), false);
         match interrupt {
@@ -2055,7 +2056,7 @@ pub fn gic_maintenance_handler(_arg: usize) {
         return;
     }
 
-    let Some(gich) = GICH;
+    let gich = GICH.unwrap();
     let misr = gich.get_misr();
     let vm = match active_vm() {
         Some(vm) => vm,
@@ -2237,7 +2238,7 @@ pub fn vgic_ipi_handler(msg: &IpiMessage) {
         return;
     }
 
-    let Some(gich) = GICH;
+    let gich = GICH.unwrap();
 
     let vm_id;
     let int_id;
@@ -2323,7 +2324,7 @@ pub fn emu_intc_init(vm: Vm, emu_dev_id: usize) {
         return;
     }
 
-    let Some(gicd) = GICD;
+    let gicd = GICD.unwrap();
 
     let vgic_cpu_num = vm.config().cpu_num();
     vm.init_intc_mode(true);

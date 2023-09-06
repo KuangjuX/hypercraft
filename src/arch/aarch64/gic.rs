@@ -114,7 +114,11 @@ pub fn gicc_clear_current_irq(for_hypervisor: bool) {
     if irq == 0 {
         return;
     }
-    let Some(gicc) = GICC;
+    if GICC.is_none() {
+        warn!("No available GICC in gicc_clear_current_irq");
+        return;
+    }
+    let gicc = GICC.unwrap();
     // let gicc = &GICC;
     gicc.set_eoi(irq);
     // gicc.EOIR.set(irq);
@@ -125,8 +129,46 @@ pub fn gicc_clear_current_irq(for_hypervisor: bool) {
     current_cpu().current_irq = irq;
 }
 
+pub fn gic_cpu_reset() {
+    if GICC.is_none() {
+        warn!("No available GICC in gic_cpu_reset");
+        return;
+    }
+    if GICH.is_none() {
+        warn!("No available GICH in gic_cpu_reset");
+        return;
+    }
+    let gicc = GICC.unwrap();
+    let gich = GICH.unwrap();
+    gicc.init();
+    gich.init();
+}
+
 pub fn gic_lrs() -> usize {
     *GIC_LRS_NUM.lock()
+}
+
+pub fn interrupt_arch_clear() {
+    gic_cpu_reset();
+    gicc_clear_current_irq(true);
+}
+
+pub fn interrupt_arch_enable(int_id: usize, en: bool) {
+    if GICD.is_none() {
+        warn!("No available GICH in interrupt_arch_enable");
+        return;
+    }
+
+    let gicd = GICD.unwrap();
+    let cpu_id = current_cpu().cpu_id;
+    if en {
+        gicd.set_priority(int_id, 0x7f);
+        gicd.set_target_cpu(int_id, 1 << cpu_id);
+
+        gicd.set_enable(int_id, en);
+    } else {
+        gicd.set_enable(int_id, en);
+    }
 }
 
 #[derive(Copy, Clone, Debug)]

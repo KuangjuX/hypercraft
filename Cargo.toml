@@ -14,6 +14,7 @@ arrayvec = { version = "0.7.2", default-features = false }
 spin = { version = "0.9", features = ["once", "rwlock", "spin_mutex"] }
 # tock-registers = "0.8.1"
 cortex-a = "7.4.0"
+fdt = {version = "0.1.5"}
 
 # arceos crates
 page_table = { path = "../page_table" }

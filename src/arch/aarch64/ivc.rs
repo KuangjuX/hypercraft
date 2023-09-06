@@ -13,8 +13,8 @@ pub fn ivc_update_mq(receive_ipa: usize, cfg_ipa: usize) -> bool {
         return false;
     }
 
-    vm_if_set_ivc_arg(vm_id, cfg_pa);
-    vm_if_set_ivc_arg_ptr(vm_id, cfg_pa - PageSize::Size4K as usize  / VM_NUM_MAX);
+    vm_interface_set_ivc_arg(vm_id, cfg_pa);
+    vm_interface_set_ivc_arg_ptr(vm_id, cfg_pa - PageSize::Size4K as usize  / VM_NUM_MAX);
 
     let idx = 0;
     let val = vm_id;

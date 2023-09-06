@@ -1,3 +1,7 @@
+use core::hint::spin_loop;
+
+use crate::arch::psci::{power_arch_sys_reset, power_arch_sys_shutdown};
+
 pub const GICD_BASE: usize = 0x08000000;
 pub const GICC_BASE: usize = 0x08010000;
 pub const GICH_BASE: usize = 0x08030000;
@@ -7,6 +11,24 @@ pub const UART_0_ADDR: usize = 0x9000000;
 pub const UART_1_ADDR: usize = 0x9100000;
 pub const UART_2_ADDR: usize = 0x9110000;
 
+pub const PLATFORM_CPU_NUM_MAX: usize = 8;
+pub const PLATFORM_VCPU_NUM_MAX: usize = 8;
+
+pub fn sys_reboot() -> ! {
+    info!("Hypervisor reset...");
+    power_arch_sys_reset();
+    loop {
+        spin_loop();
+    }
+}
+
+pub fn sys_shutdown() -> ! {
+    info!("Hypervisor shutdown...");
+    power_arch_sys_shutdown();
+    loop {
+        spin_loop();
+    }
+}
 /* 
 pub struct QemuPlatform;
 

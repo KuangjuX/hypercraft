@@ -12,93 +12,189 @@ use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::mem::size_of;
+
 use spin::Mutex;
 
-use crate::arch::vcpu::Vcpu;
-use crate::arch::gic::{GICC_CTLR_EN_BIT, GICC_CTLR_EOIMODENS_BIT};
-use crate::arch::vgic::{Vgic};
+use crate::arch::{PAGE_SIZE, PTE_S2_FIELD_AP_RO, PTE_S2_NORMAL, PTE_S2_RO};
+use crate::arch::{GICC_CTLR_EN_BIT, GICC_CTLR_EOIMODENS_BIT};
+use crate::arch::PageTable;
+use crate::arch::Vgic;
+use crate::board::{Platform, PlatOperation};
+use crate::config::VmConfigEntry;
+use crate::device::EmuDevs;
+use crate::kernel::{
+    EmuDevData, get_share_mem, mem_pages_alloc, VirtioMmioData, VM_CONTEXT_RECEIVE, VM_CONTEXT_SEND, VMData,
+};
+use crate::lib::*;
+use crate::mm::PageFrame;
+
+use super::vcpu::Vcpu;
 
 pub const DIRTY_MEM_THRESHOLD: usize = 0x2000;
 pub const VM_NUM_MAX: usize = 8;
 pub static VM_IF_LIST: [Mutex<VmInterface>; VM_NUM_MAX] = [const { Mutex::new(VmInterface::default()) }; VM_NUM_MAX];
 
-pub fn vm_if_reset(vm_id: usize) {
-    let mut vm_if = VM_IF_LIST[vm_id].lock();
-    vm_if.reset();
+pub fn vm_interface_reset(vm_id: usize) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.reset();
 }
 
-fn vm_if_set_cpu_id(vm_id: usize, master_cpu_id: usize) {
-    let mut vm_if = VM_IF_LIST[vm_id].lock();
-    vm_if.master_cpu_id = master_cpu_id;
+pub fn vm_interface_set_state(vm_id: usize, vm_state: VmState) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.state = vm_state;
+}
+
+pub fn vm_interface_get_state(vm_id: usize) -> VmState {
+    let vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.state
+}
+
+pub fn vm_interface_set_type(vm_id: usize, vm_type: VmType) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.vm_type = vm_type;
+}
+
+pub fn vm_interface_get_type(vm_id: usize) -> VmType {
+    let vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.vm_type
+}
+
+fn vm_interface_set_cpu_id(vm_id: usize, master_cpu_id: usize) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.master_cpu_id = master_cpu_id;
     debug!(
-        "vm_if_list_set_cpu_id vm [{}] set master_cpu_id {}",
+        "vm_interface_list_set_cpu_id vm [{}] set master_cpu_id {}",
         vm_id, master_cpu_id
     );
 }
 
 // todo: rewrite return val to Option<usize>
-pub fn vm_if_get_cpu_id(vm_id: usize) -> usize {
-    let vm_if = VM_IF_LIST[vm_id].lock();
-    vm_if.master_cpu_id
+pub fn vm_interface_get_cpu_id(vm_id: usize) -> usize {
+    let vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.master_cpu_id
 }
 
-pub fn vm_if_cmp_mac(vm_id: usize, frame: &[u8]) -> bool {
-    let vm_if = VM_IF_LIST[vm_id].lock();
+pub fn vm_interface_cmp_mac(vm_id: usize, frame: &[u8]) -> bool {
+    let vm_interface = VM_IF_LIST[vm_id].lock();
     for i in 0..6 {
-        if vm_if.mac[i] != frame[i] {
+        if vm_interface.mac[i] != frame[i] {
             return false;
         }
     }
     true
 }
 
-pub fn vm_if_set_ivc_arg(vm_id: usize, ivc_arg: usize) {
-    let mut vm_if = VM_IF_LIST[vm_id].lock();
-    vm_if.ivc_arg = ivc_arg;
+pub fn vm_interface_set_ivc_arg(vm_id: usize, ivc_arg: usize) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.ivc_arg = ivc_arg;
 }
 
-pub fn vm_if_ivc_arg(vm_id: usize) -> usize {
-    let vm_if = VM_IF_LIST[vm_id].lock();
-    vm_if.ivc_arg
+pub fn vm_interface_ivc_arg(vm_id: usize) -> usize {
+    let vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.ivc_arg
 }
 
-pub fn vm_if_set_ivc_arg_ptr(vm_id: usize, ivc_arg_ptr: usize) {
-    let mut vm_if = VM_IF_LIST[vm_id].lock();
-    vm_if.ivc_arg_ptr = ivc_arg_ptr;
+pub fn vm_interface_set_ivc_arg_ptr(vm_id: usize, ivc_arg_ptr: usize) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.ivc_arg_ptr = ivc_arg_ptr;
 }
 
-pub fn vm_if_ivc_arg_ptr(vm_id: usize) -> usize {
-    let vm_if = VM_IF_LIST[vm_id].lock();
-    vm_if.ivc_arg_ptr
+pub fn vm_interface_ivc_arg_ptr(vm_id: usize) -> usize {
+    let vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.ivc_arg_ptr
 }
 
-pub fn vm_if_set_mem_map_bit(vm: Vm, pa: usize) {
-    let mut vm_if = VM_IF_LIST[vm.id()].lock();
+// new if for vm migration
+pub fn vm_interface_init_mem_map(vm_id: usize, len: usize) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.mem_map = Some(FlexBitmap::new(len));
+}
+
+pub fn vm_interface_set_mem_map_cache(vm_id: usize, pf: PageFrame) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.mem_map_cache = Some(Arc::new(pf));
+}
+
+pub fn vm_interface_mem_map_cache(vm_id: usize) -> Option<Arc<PageFrame>> {
+    let vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.mem_map_cache.clone()
+}
+
+pub fn vm_interface_dirty_mem_map(vm_id: usize) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.mem_map.as_mut().unwrap().init_dirty();
+}
+
+pub fn vm_interface_set_mem_map_bit(vm: Vm, pa: usize) {
+    let mut vm_interface = VM_IF_LIST[vm.id()].lock();
     let mut bit = 0;
     for i in 0..vm.region_num() {
         let start = vm.pa_start(i);
         let len = vm.pa_length(i);
         if pa >= start && pa < start + len {
             bit += (pa - start) / PAGE_SIZE;
-            // if vm_if.mem_map.as_mut().unwrap().get(bit) == 0 {
-            //     info!("vm_if_set_mem_map_bit: set pa 0x{:x}", pa);
+            // if vm_interface.mem_map.as_mut().unwrap().get(bit) == 0 {
+            //     println!("vm_interface_set_mem_map_bit: set pa 0x{:x}", pa);
             // }
-            vm_if.mem_map.as_mut().unwrap().set(bit, true);
+            vm_interface.mem_map.as_mut().unwrap().set(bit, true);
             return;
         } else {
             bit += len / PAGE_SIZE;
         }
     }
-    panic!("vm_if_set_mem_map_bit: illegal pa 0x{:x}", pa);
+    panic!("vm_interface_set_mem_map_bit: illegal pa 0x{:x}", pa);
 }
-/*
+
+pub fn vm_interface_set_mem_map(vm_id: usize, bit: usize, len: usize) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.mem_map.as_mut().unwrap().set_bits(bit, len, true);
+}
+
+pub fn vm_interface_clear_mem_map(vm_id: usize) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.mem_map.as_mut().unwrap().clear();
+}
+
+pub fn vm_interface_copy_mem_map(vm_id: usize) {
+    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    let mem_map_cache = vm_interface.mem_map_cache.clone();
+    let map = vm_interface.mem_map.as_mut().unwrap();
+    // map.set(0x15, true);
+    // TODO: hard code for offset 0x15000
+    // println!(
+    //     "vm_interface_copy_mem_map: dirty mem page num {}, first dirty page 0x{:x}, bitmap len {:x}",
+    //     map.sum(),
+    //     map.first(),
+    //     size_of::<u64>() * map.vec_len()
+    // );
+    memcpy_safe(
+        mem_map_cache.as_ref().unwrap().pa() as *const u8,
+        map.slice() as *const _ as *const u8,
+        size_of::<u64>() * map.vec_len(),
+    );
+    // clear bitmap after copy
+    map.clear();
+}
+
+pub fn vm_interface_mem_map_page_num(vm_id: usize) -> usize {
+    let vm_interface = VM_IF_LIST[vm_id].lock();
+    let map = vm_interface.mem_map.as_ref().unwrap();
+    8 * map.vec_len() / PAGE_SIZE
+}
+
+pub fn vm_interface_mem_map_dirty_sum(vm_id: usize) -> usize {
+    let vm_interface = VM_IF_LIST[vm_id].lock();
+    vm_interface.mem_map.as_ref().unwrap().sum()
+}
+// End vm interface func implementation
+
 #[derive(Clone, Copy)]
 pub enum VmState {
     VmInv = 0,
     VmPending = 1,
     VmActive = 2,
 }
- 
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum VmType {
     VmTOs = 0,
@@ -114,9 +210,11 @@ impl VmType {
         }
     }
 }
-*/
+
 pub struct VmInterface {
     pub master_cpu_id: usize,
+    pub state: VmState,
+    pub vm_type: VmType,
     pub mac: [u8; 6],
     pub ivc_arg: usize,
     pub ivc_arg_ptr: usize,
@@ -128,6 +226,8 @@ impl VmInterface {
     const fn default() -> VmInterface {
         VmInterface {
             master_cpu_id: 0,
+            state: VmState::VmPending,
+            vm_type: VmType::VmTBma,
             mac: [0; 6],
             ivc_arg: 0,
             ivc_arg_ptr: 0,
@@ -138,6 +238,8 @@ impl VmInterface {
 
     fn reset(&mut self) {
         self.master_cpu_id = 0;
+        self.state = VmState::VmPending;
+        self.vm_type = VmType::VmTBma;
         self.mac = [0; 6];
         self.ivc_arg = 0;
         self.ivc_arg_ptr = 0;
@@ -260,7 +362,7 @@ impl Vm {
                 Some(vcpu)
             }
             None => {
-                info!(
+                println!(
                     "vcpu idx {} is to large than vcpu_list len {}",
                     index,
                     vm_inner.vcpu_list.len()
@@ -275,7 +377,7 @@ impl Vm {
         if vcpu.id() >= vm_inner.vcpu_list.len() {
             vm_inner.vcpu_list.push(vcpu);
         } else {
-            info!("VM[{}] insert VCPU {}", vm_inner.id, vcpu.id());
+            println!("VM[{}] insert VCPU {}", vm_inner.id, vcpu.id());
             vm_inner.vcpu_list.insert(vcpu.id(), vcpu);
         }
     }
@@ -309,7 +411,7 @@ impl Vm {
                 None => None,
                 Some(vcpu) => {
                     if vcpu.id() == 0 {
-                        vm_if_set_cpu_id(vm_inner.id, cpu_id);
+                        vm_interface_set_cpu_id(vm_inner.id, cpu_id);
                         vm_inner.has_master = true;
                     }
                     vm_inner.cpu_num += 1;
@@ -331,7 +433,7 @@ impl Vm {
         let mut vm_inner = self.inner.lock();
         if idx < vm_inner.emu_devs.len() {
             if let EmuDevs::None = vm_inner.emu_devs[idx] {
-                // info!("set_emu_devs: cover a None emu dev");
+                // println!("set_emu_devs: cover a None emu dev");
                 vm_inner.emu_devs[idx] = emu;
                 return;
             } else {
@@ -555,9 +657,9 @@ impl Vm {
                 return self.inner.lock().emu_devs[idx].clone();
             }
         }
-        // info!("emu_console_dev ipa {:x}", ipa);
+        // println!("emu_console_dev ipa {:x}", ipa);
         // for (idx, emu_dev_cfg) in self.config().emulated_device_list().iter().enumerate() {
-        //     info!("emu dev[{}], ipa 0x{:x}", idx, emu_dev_cfg.base_ipa);
+        //     println!("emu dev[{}], ipa 0x{:x}", idx, emu_dev_cfg.base_ipa);
         // }
         return EmuDevs::None;
     }
@@ -582,7 +684,7 @@ impl Vm {
     }
 
     pub fn vcpuid_to_pcpuid(&self, vcpuid: usize) -> Result<usize, ()> {
-        // info!("vcpuid_to_pcpuid");
+        // println!("vcpuid_to_pcpuid");
         let vm_inner = self.inner.lock();
         if vcpuid < vm_inner.cpu_num {
             let vcpu = vm_inner.vcpu_list[vcpuid].clone();
@@ -645,7 +747,7 @@ impl Vm {
         let mvm = vm(0).unwrap();
         // for i in 0..self.ncpu() {
         let size = size_of::<VMData>();
-        // info!("context_vm_migrate_init: VM Data size 0x{:x}", size);
+        // println!("context_vm_migrate_init: VM Data size 0x{:x}", size);
         match mem_pages_alloc(round_up(size, PAGE_SIZE) / PAGE_SIZE) {
             Ok(pf) => {
                 mvm.pt_map_range(
@@ -672,7 +774,7 @@ impl Vm {
             Ok(pf) => {
                 let mut vm_data = unsafe { &mut *(pf.pa as *mut VMData) };
                 let base = get_share_mem(VM_CONTEXT_SEND);
-                // info!("pt map base 0x{:x} size 0x{:x}", base, size);
+                // println!("pt map base 0x{:x} size 0x{:x}", base, size);
                 mvm.pt_map_range(base, round_up(size, PAGE_SIZE), pf.pa(), PTE_S2_RO, true);
 
                 // key: pcpuid, val: vcpuid
@@ -697,21 +799,21 @@ impl Vm {
                         EmuDevs::VirtioBlk(mmio) => {
                             vm_data.emu_devs[idx] = EmuDevData::VirtioBlk(VirtioMmioData::default());
                             if let EmuDevData::VirtioBlk(mmio_data) = &mut vm_data.emu_devs[idx] {
-                                // info!("vm[{}] save virtio blk", inner.id);
+                                // println!("vm[{}] save virtio blk", inner.id);
                                 mmio.save_mmio_data(mmio_data, &inner.pa_region);
                             }
                         }
                         EmuDevs::VirtioNet(mmio) => {
                             vm_data.emu_devs[idx] = EmuDevData::VirtioNet(VirtioMmioData::default());
                             if let EmuDevData::VirtioNet(mmio_data) = &mut vm_data.emu_devs[idx] {
-                                // info!("vm[{}] save virtio net", inner.id);
+                                // println!("vm[{}] save virtio net", inner.id);
                                 mmio.save_mmio_data(mmio_data, &inner.pa_region);
                             }
                         }
                         EmuDevs::VirtioConsole(mmio) => {
                             vm_data.emu_devs[idx] = EmuDevData::VirtioConsole(VirtioMmioData::default());
                             if let EmuDevData::VirtioConsole(mmio_data) = &mut vm_data.emu_devs[idx] {
-                                // info!("vm[{}] save virtio console", inner.id);
+                                // println!("vm[{}] save virtio console", inner.id);
                                 mmio.save_mmio_data(mmio_data, &inner.pa_region);
                             }
                         }
@@ -745,13 +847,13 @@ impl Vm {
                     }
                 }
                 EmuDevs::VirtioNet(mmio) => {
-                    // info!("context_vm_migrate_restore: net");
+                    // println!("context_vm_migrate_restore: net");
                     if let EmuDevData::VirtioNet(mmio_data) = &vm_data.emu_devs[idx] {
                         mmio.restore_mmio_data(mmio_data, &inner.pa_region);
                     }
                 }
                 EmuDevs::VirtioConsole(mmio) => {
-                    // info!("context_vm_migrate_restore: console");
+                    // println!("context_vm_migrate_restore: console");
                     if let EmuDevData::VirtioConsole(mmio_data) = &mut vm_data.emu_devs[idx] {
                         mmio.restore_mmio_data(mmio_data, &inner.pa_region);
                     }
@@ -882,7 +984,7 @@ pub static VM_LIST: Mutex<Vec<Vm>> = Mutex::new(Vec::new());
 pub fn push_vm(id: usize) -> Result<(), ()> {
     let mut vm_list = VM_LIST.lock();
     if vm_list.iter().any(|x| x.id() == id) {
-        info!("push_vm: vm {} already exists", id);
+        println!("push_vm: vm {} already exists", id);
         Err(())
     } else {
         vm_list.push(Vm::new(id));
@@ -912,7 +1014,7 @@ pub fn vm_list_size() -> usize {
 
 pub fn vm_ipa2pa(vm: Vm, ipa: usize) -> usize {
     if ipa == 0 {
-        info!("vm_ipa2pa: VM {} access invalid ipa {:x}", vm.id(), ipa);
+        println!("vm_ipa2pa: VM {} access invalid ipa {:x}", vm.id(), ipa);
         return 0;
     }
 
@@ -926,13 +1028,13 @@ pub fn vm_ipa2pa(vm: Vm, ipa: usize) -> usize {
         }
     }
 
-    info!("vm_ipa2pa: VM {} access invalid ipa {:x}", vm.id(), ipa);
+    println!("vm_ipa2pa: VM {} access invalid ipa {:x}", vm.id(), ipa);
     return 0;
 }
 
 pub fn vm_pa2ipa(vm: Vm, pa: usize) -> usize {
     if pa == 0 {
-        info!("vm_pa2ipa: VM {} access invalid pa {:x}", vm.id(), pa);
+        println!("vm_pa2ipa: VM {} access invalid pa {:x}", vm.id(), pa);
         return 0;
     }
 
@@ -942,13 +1044,13 @@ pub fn vm_pa2ipa(vm: Vm, pa: usize) -> usize {
         }
     }
 
-    info!("vm_pa2ipa: VM {} access invalid pa {:x}", vm.id(), pa);
+    println!("vm_pa2ipa: VM {} access invalid pa {:x}", vm.id(), pa);
     return 0;
 }
 
 pub fn pa2ipa(pa_region: &Vec<VmPa>, pa: usize) -> usize {
     if pa == 0 {
-        info!("pa2ipa: access invalid pa {:x}", pa);
+        println!("pa2ipa: access invalid pa {:x}", pa);
         return 0;
     }
 
@@ -958,13 +1060,13 @@ pub fn pa2ipa(pa_region: &Vec<VmPa>, pa: usize) -> usize {
         }
     }
 
-    info!("pa2ipa: access invalid pa {:x}", pa);
+    println!("pa2ipa: access invalid pa {:x}", pa);
     return 0;
 }
 
 pub fn ipa2pa(pa_region: &Vec<VmPa>, ipa: usize) -> usize {
     if ipa == 0 {
-        // info!("ipa2pa: access invalid ipa {:x}", ipa);
+        // println!("ipa2pa: access invalid ipa {:x}", ipa);
         return 0;
     }
 
@@ -978,6 +1080,6 @@ pub fn ipa2pa(pa_region: &Vec<VmPa>, ipa: usize) -> usize {
         }
     }
 
-    // info!("ipa2pa: access invalid ipa {:x}", ipa);
+    // println!("ipa2pa: access invalid ipa {:x}", ipa);
     return 0;
 }

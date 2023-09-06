@@ -20,6 +20,7 @@ mod manageVm;
 mod gic;
 mod ivc;
 mod platform_qemu;
+mod timer;
 
 pub use cpu::{current_cpu, CPU_INTERFACE_LIST, active_vm, active_vcpu_id, active_vm_id};
 pub use ipi::IPI_HANDLER_LIST;

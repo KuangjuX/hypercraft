@@ -1,5 +1,5 @@
 use crate::arch::vcpu::{Vcpu, VcpuState, vcpu_arch_init};
-use crate::arch::cpu::active_vm;
+use crate::arch::cpu::CpuState;
 use crate::arch::smc::smc_call;
 use crate::arch::ipi::{
     ipi_register, IpiType, IpiPowerMessage, PowerEvent, ipi_intra_broadcast_msg,
@@ -7,7 +7,7 @@ use crate::arch::ipi::{
 };
 use crate::arch::manageVm::vmm_reboot;
 use crate::arch::vm::Vm;
-use crate::arch::current_cpu;
+use crate::arch::{current_cpu, active_vm};
 
 pub const PSCI_VERSION: usize = 0x84000000;
 pub const PSCI_MIG_INFO_TYPE: usize = 0x84000006;
@@ -126,6 +126,7 @@ fn psci_vcpu_on(vcpu: Vcpu, entry: usize, ctx: usize) {
             current_cpu().cpu_id
         );
     }
+    current_cpu().cpu_state = CpuState::CpuRun;
     vcpu.reset_context();
     vcpu.set_gpr(0, ctx);
     vcpu.set_elr(entry);

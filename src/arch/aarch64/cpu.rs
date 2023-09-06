@@ -5,6 +5,7 @@ use crate::arch::ipi::{IpiMessage, IPI_HANDLER_LIST};
 use crate::arch::vcpu::Vcpu;
 use crate::arch::vcpu_array::VcpuArray;
 use crate::arch::vm::Vm;
+use crate::arch::interrupt::cpu_interrupt_unmask;
 
 use crate::arch::ContextFrame;
 use crate::HyperCraftHal;
@@ -32,6 +33,19 @@ impl PartialEq for CpuPt {
         self.lvl1 == other.lvl1 && self.lvl2 == other.lvl2 && self.lvl3 == other.lvl3
     }
 }*/
+
+#[derive(Copy, Clone, Debug, Eq)]
+pub enum CpuState {
+    CpuInactive = 0,
+    CpuIdle = 1,
+    CpuRun = 2,
+}
+
+impl PartialEq for CpuState {
+    fn eq(&self, other: &Self) -> bool {
+        *self as usize == *other as usize
+    }
+}
 
 pub struct CpuInterface {
     pub msg_queue: Vec<IpiMessage>,
@@ -64,6 +78,7 @@ fn cpu_interface_init() {
 #[repr(align(4096))]
 pub struct Cpu{
     pub cpu_id: usize,
+    pub cpu_state: CpuState,
     stack: [u8; CPU_STACK_SIZE],
     pub context_addr: Option<usize>,
 
@@ -79,6 +94,7 @@ impl Cpu{
     const fn default() -> Self {
         Cpu {
             cpu_id: 0,
+            cpu_state: CpuState::CpuInactive,
             stack: [0; CPU_STACK_SIZE],
             context_addr: None,
 
@@ -220,11 +236,11 @@ impl Cpu{
             SchedType::SchedRR(rr) => rr,
         }
     }
-
+*/
     pub fn assigned(&self) -> bool {
         self.vcpu_array.vcpu_num() != 0
     }
-*/
+
 }
 
 #[no_mangle]
@@ -288,6 +304,7 @@ pub fn cpu_init() {
         println!("Cpu init ok");
     }
 }
+*/
 
 pub fn cpu_idle() -> ! {
     let state = CpuState::CpuIdle;
@@ -298,12 +315,12 @@ pub fn cpu_idle() -> ! {
         cortex_a::asm::wfi();
     }
 }
-*/
+
 pub static mut CPU_LIST: [Cpu; PLATFORM_CPU_NUM_MAX] = [const { Cpu::default() }; PLATFORM_CPU_NUM_MAX];
 
 /*
 #[no_mangle]
-// #[link_section = ".text.boot"]
+#[link_section = ".text.boot"]
 pub extern "C" fn cpu_map_self(cpu_id: usize) -> usize {
     let mut cpu = unsafe { &mut CPU_LIST[cpu_id] };
     (*cpu).id = cpu_id;

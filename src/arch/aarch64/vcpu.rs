@@ -18,14 +18,14 @@ use cortex_a::registers::*;
 use tock_registers::interfaces::*;
  
 
-use crate::arch::{ContextFrame, memcpy_safe, current_cpu, GICV_BASE};
+use crate::arch::{ContextFrame, memcpy_safe, current_cpu, GICV_BASE, active_vm_id, active_vcpu_id};
 use crate::arch::contextFrame::VmContext;
 use crate::traits::ContextFrameTrait;
-use crate::arch::vm::Vm;
+use crate::arch::vm::{Vm, VmState, vm_interface_set_state};
 use crate::arch::gic::{GICD, GICC, GICH};
-use crate::arch::{active_vm_id, active_vcpu_id};
 use crate::arch::interrupt::{interrupt_vm_inject, cpu_interrupt_unmask};
 use crate::arch::psci::power_arch_cpu_shutdown;
+use crate::arch::cpu::CpuState;
 
 #[derive(Clone, Copy, Debug)]
 pub enum VcpuState {
@@ -442,6 +442,9 @@ pub fn vcpu_run(announce: bool) -> ! {
     {
         let vcpu = current_cpu().active_vcpu.clone().unwrap();
         let vm = vcpu.vm().unwrap();
+
+        current_cpu().cpu_state = CpuState::CpuRun;
+        vm_interface_set_state(active_vm_id(), VmState::VmActive);
 
         vcpu.context_vm_restore();
         /*
