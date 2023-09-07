@@ -8,30 +8,17 @@ use crate::arch::vm::Vm;
 use crate::arch::interrupt::cpu_interrupt_unmask;
 use crate::arch::psci::power_arch_init;
 use crate::arch::{ContextFrame, Platform, PlatOperation, PLAT_DESC};
+use crate::arch::platform::PLATFORM_CPU_NUM_MAX;
+
 use crate::traits::ContextFrameTrait;
 
 /// need to move to a suitable file?
 const PAGE_SIZE_4K: usize = 0x1000;
 
-pub const PLATFORM_CPU_NUM_MAX: usize = 8; 
 pub const CPU_MASTER: usize = 0;
 pub const CPU_STACK_SIZE: usize = PAGE_SIZE_4K * 128;
 pub const CONTEXT_GPR_NUM: usize = 31;
-
-/*#[repr(C)]
-#[repr(align(4096))]
-#[derive(Copy, Clone, Debug, Eq)]
-pub struct CpuPt {
-    pub lvl1: [usize; PTE_PER_PAGE],
-    pub lvl2: [usize; PTE_PER_PAGE],
-    pub lvl3: [usize; PTE_PER_PAGE],
-}
-
-impl PartialEq for CpuPt {
-    fn eq(&self, other: &Self) -> bool {
-        self.lvl1 == other.lvl1 && self.lvl2 == other.lvl2 && self.lvl3 == other.lvl3
-    }
-}*/
+pub const PTE_PER_PAGE: usize = 512;
 
 #[derive(Copy, Clone, Debug, Eq)]
 pub enum CpuState {
@@ -316,12 +303,12 @@ pub fn cpu_idle() -> ! {
 
 pub static mut CPU_LIST: [Cpu; PLATFORM_CPU_NUM_MAX] = [const { Cpu::default() }; PLATFORM_CPU_NUM_MAX];
 
-/*
+/* 
 #[no_mangle]
 #[link_section = ".text.boot"]
 pub extern "C" fn cpu_map_self(cpu_id: usize) -> usize {
     let mut cpu = unsafe { &mut CPU_LIST[cpu_id] };
-    (*cpu).id = cpu_id;
+    (*cpu).cpu_id = cpu_id;
 
     let lvl1_addr = pt_map_banked_cpu(cpu);
 

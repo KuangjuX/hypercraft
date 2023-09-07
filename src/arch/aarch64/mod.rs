@@ -21,6 +21,7 @@ mod gic;
 mod ivc;
 mod platform;
 mod timer;
+mod ept;
 
 pub use cpu::{current_cpu, CPU_INTERFACE_LIST, active_vm, active_vcpu_id, active_vm_id};
 pub use ipi::ipi_irq_handler;

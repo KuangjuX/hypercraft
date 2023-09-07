@@ -6,18 +6,19 @@ use crate::arch::vmConfig::*;
 use crate::arch::ipi::*;
 use crate::arch::hvc::*;
 use crate::arch::{
-    current_cpu, active_vm_id, active_vm, active_vcpu_id, PLATFORM_CPU_NUM_MAX,
-    memset_safe, memcpy_safe, GICD_BASE, GICC_BASE
+    current_cpu, active_vm_id, active_vm, active_vcpu_id, memset_safe, memcpy_safe
 };
 use crate::arch::vcpu::{vcpu_alloc, vcpu_remove, vcpu_run, vcpu_arch_init};
 use crate::arch::cpu::cpu_idle;
 use crate::arch::utils::{bit_extract, trace};
 use crate::arch::gic::{gicc_clear_current_irq, interrupt_arch_clear};
 use crate::arch::timer::sleep;
-use crate::arch::platform_qemu::{sys_reboot, sys_shutdown};
+use crate::arch::{PlatOperation, Platform};
 use crate::arch::psci::power_arch_vm_shutdown_secondary_cores;
 use crate::arch::interrupt::interrupt_vm_remove;
-use crate::arch::emu::emu_remove_dev;
+use crate::arch::emu::{emu_remove_dev, emu_register_dev};
+use crate::arch::platform::PLATFORM_CPU_NUM_MAX;
+use crate::arch::vgic::{emu_intc_handler, emu_intc_init};
 
 use arm_gic::GIC_SGIS_NUM;
 
@@ -58,8 +59,6 @@ pub fn vmm_push_vm(vm_id: usize) {
         }
     };
     vm.set_config_entry(Some(vm_cfg));
-
-    vm_interface_set_type(vm_id, vm_type(vm_id));
 }
 
 pub fn vmm_alloc_vcpu(vm_id: usize) {
@@ -377,13 +376,10 @@ pub fn vmm_list_vm(vm_info_ipa: usize) -> Result<usize, ()> {
                 continue;
             }
         };
-        // Get VM type.
-        let vm_type = vm_type(*vmid);
         // Get VM State.
         let vm_state = vm_interface_get_state(*vmid);
 
         vm_info.info_list[idx].id = *vmid as u32;
-        vm_info.info_list[idx].vm_type = vm_type as u32;
         vm_info.info_list[idx].vm_state = vm_state as u32;
 
         let vm_name_u8: Vec<u8> = vm_cfg.vm_name().as_bytes().to_vec();
@@ -722,6 +718,133 @@ pub fn vmm_init_image(vm: Vm) -> bool {
 }
 
 
+fn vmm_init_emulated_device(vm: Vm) -> bool {
+    let config = vm.config().emulated_device_list();
+
+    for (idx, emu_dev) in config.iter().enumerate() {
+        match emu_dev.emu_type {
+            EmuDeviceTGicd => {
+                vm.set_intc_dev_id(idx);
+                emu_register_dev(
+                    EmuDeviceTGicd,
+                    vm.id(),
+                    idx,
+                    emu_dev.base_ipa,
+                    emu_dev.length,
+                    emu_intc_handler,
+                );
+                emu_intc_init(vm.clone(), idx);
+            }
+            EmuDeviceTShyper => {
+                if !shyper_init(vm.clone(), emu_dev.base_ipa, emu_dev.length) {
+                    return false;
+                }
+            }
+            _ => {
+                warn!("vmm_init_emulated_device: unknown emulated device");
+                return false;
+            }
+        }
+        info!(
+            "VM {} registers emulated device: id=<{}>, name=\"{}\", ipa=<0x{:x}>",
+            vm.id(),
+            idx,
+            emu_dev.emu_type,
+            emu_dev.base_ipa
+        );
+    }
+
+    true
+}
+
+fn vmm_init_memory(vm: Vm) -> bool {
+    let result = mem_page_alloc();
+    let vm_id = vm.id();
+    let config = vm.config();
+    let mut vm_mem_size: usize = 0; // size for pages
+
+    if let Ok(pt_dir_frame) = result {
+        vm.set_pt(pt_dir_frame);
+        vm.set_mem_region_num(config.memory_region().len());
+    } else {
+        info!("vmm_init_memory: page alloc failed");
+        return false;
+    }
+
+    for vm_region in config.memory_region() {
+        let pa = mem_vm_region_alloc(vm_region.length);
+        vm_mem_size += vm_region.length;
+
+        if pa == 0 {
+            info!("vmm_init_memory: vm memory region is not large enough");
+            return false;
+        }
+
+        info!(
+            "VM {} memory region: ipa=<0x{:x}>, pa=<0x{:x}>, size=<0x{:x}>",
+            vm_id, vm_region.ipa_start, pa, vm_region.length
+        );
+        vm.pt_map_range(vm_region.ipa_start, vm_region.length, pa, PTE_S2_NORMAL, vm_id == 0);
+
+        vm.add_region(VmPa {
+            pa_start: pa,
+            pa_length: vm_region.length,
+            offset: vm_region.ipa_start as isize - pa as isize,
+        });
+    }
+    vm_if_init_mem_map(vm_id, (vm_mem_size + PAGE_SIZE - 1) / PAGE_SIZE);
+
+    true
+}
+
+pub fn vmm_setup_config(vm_id: usize) {
+    let vm = match vm(vm_id) {
+        Some(vm) => vm,
+        None => {
+            panic!("vmm_setup_config vm id {} doesn't exist", vm_id);
+        }
+    };
+
+    let config = match vm_cfg_entry(vm_id) {
+        Some(config) => config,
+        None => {
+            panic!("vmm_setup_config vm id {} config doesn't exist", vm_id);
+        }
+    };
+
+    info!(
+        "vmm_setup_config VM[{}] name {:?} current core {}",
+        vm_id,
+        config.name.unwrap(),
+        current_cpu().cpu_id
+    );
+
+    if vm_id >= VM_NUM_MAX {
+        panic!("vmm_setup_config: out of vm");
+    }
+    if !vmm_init_memory(vm.clone()) {
+        panic!("vmm_setup_config: vmm_init_memory failed");
+    }
+
+    if !vmm_init_image(vm.clone()) {
+        panic!("vmm_setup_config: vmm_init_image failed");
+    }
+
+    if !vmm_init_emulated_device(vm.clone()) {
+        panic!("vmm_setup_config: vmm_init_emulated_device failed");
+    }
+    /*
+    if !vmm_init_passthrough_device(vm.clone()) {
+        panic!("vmm_setup_config: vmm_init_passthrough_device failed");
+    }
+    if !vmm_init_iommu_device(vm.clone()) {
+        panic!("vmm_setup_config: vmm_init_iommu_device failed");
+    }
+    */
+    add_async_used_info(vm_id);
+    info!("VM {} id {} init ok", vm.id(), vm.config().name.unwrap());
+}
+
 pub unsafe fn vmm_setup_fdt(vm: Vm) {
     use fdt::*;
     let config = vm.config();
@@ -746,8 +869,8 @@ pub unsafe fn vmm_setup_fdt(vm: Vm) {
                         EmuDeviceTGicd => {
                             fdt_setup_gic(
                                 dtb,
-                                GICD_BASE as u64,
-                                GICC_BASE as u64,
+                                Platform::GICD_BASE as u64,
+                                Platform::GICC_BASE as u64,
                                 emu_cfg.name.unwrap().as_ptr(),
                             );
                         }

@@ -12,64 +12,42 @@ use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::mem::size_of;
-
 use spin::Mutex;
 
 use crate::arch::vgic::Vgic;
 use crate::arch::vcpu::Vcpu;
-use crate::arch::platform_qemu::*;
+use crate::arch::{PlatOperation, Platform};
 use crate::arch::utils::*;
 use crate::arch::emu::EmuDevs;
 use crate::arch::vmConfig::VmConfigEntry;
 use crate::arch::memcpy_safe;
-use crate::arch::platform_qemu::SHARE_MEM_BASE;
 use crate::memory::PAGE_SIZE_4K;
+use crate::arch::ept::A64HVPageTable;
 
-/* 
-use crate::arch::{PAGE_SIZE_4K, PTE_S2_FIELD_AP_RO, PTE_S2_NORMAL, PTE_S2_RO};
-use crate::arch::{GICC_CTLR_EN_BIT, GICC_CTLR_EOIMODENS_BIT};
-use crate::arch::PageTable;
-use crate::board::{Platform, PlatOperation};
-use crate::config::VmConfigEntry;
-use crate::device::EmuDevs;
-use crate::kernel::{
-    EmuDevData, get_share_mem, mem_pages_alloc, VirtioMmioData, VM_CONTEXT_RECEIVE, VM_CONTEXT_SEND, VMData,
-};
-use crate::lib::*;
-use crate::mm::PageFrame;
-*/
+use page_table::PagingIf;
+use page_table_entry::MappingFlags;
 
 pub const DIRTY_MEM_THRESHOLD: usize = 0x2000;
 pub const VM_NUM_MAX: usize = 8;
-pub static VM_IF_LIST: [Mutex<VmInterface>; VM_NUM_MAX] = [const { Mutex::new(VmInterface::default()) }; VM_NUM_MAX];
+pub static VM_INTERFACE_LIST: [Mutex<VmInterface>; VM_NUM_MAX] = [const { Mutex::new(VmInterface::default()) }; VM_NUM_MAX];
 
 pub fn vm_interface_reset(vm_id: usize) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    let mut vm_interface = VM_INTERFACE_LIST[vm_id].lock();
     vm_interface.reset();
 }
 
 pub fn vm_interface_set_state(vm_id: usize, vm_state: VmState) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    let mut vm_interface = VM_INTERFACE_LIST[vm_id].lock();
     vm_interface.state = vm_state;
 }
 
 pub fn vm_interface_get_state(vm_id: usize) -> VmState {
-    let vm_interface = VM_IF_LIST[vm_id].lock();
+    let vm_interface = VM_INTERFACE_LIST[vm_id].lock();
     vm_interface.state
 }
 
-pub fn vm_interface_set_type(vm_id: usize, vm_type: VmType) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
-    vm_interface.vm_type = vm_type;
-}
-
-pub fn vm_interface_get_type(vm_id: usize) -> VmType {
-    let vm_interface = VM_IF_LIST[vm_id].lock();
-    vm_interface.vm_type
-}
-
 fn vm_interface_set_cpu_id(vm_id: usize, master_cpu_id: usize) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    let mut vm_interface = VM_INTERFACE_LIST[vm_id].lock();
     vm_interface.master_cpu_id = master_cpu_id;
     debug!(
         "vm_interface_list_set_cpu_id vm [{}] set master_cpu_id {}",
@@ -79,12 +57,12 @@ fn vm_interface_set_cpu_id(vm_id: usize, master_cpu_id: usize) {
 
 // todo: rewrite return val to Option<usize>
 pub fn vm_interface_get_cpu_id(vm_id: usize) -> usize {
-    let vm_interface = VM_IF_LIST[vm_id].lock();
+    let vm_interface = VM_INTERFACE_LIST[vm_id].lock();
     vm_interface.master_cpu_id
 }
 
 pub fn vm_interface_cmp_mac(vm_id: usize, frame: &[u8]) -> bool {
-    let vm_interface = VM_IF_LIST[vm_id].lock();
+    let vm_interface = VM_INTERFACE_LIST[vm_id].lock();
     for i in 0..6 {
         if vm_interface.mac[i] != frame[i] {
             return false;
@@ -94,48 +72,35 @@ pub fn vm_interface_cmp_mac(vm_id: usize, frame: &[u8]) -> bool {
 }
 
 pub fn vm_interface_set_ivc_arg(vm_id: usize, ivc_arg: usize) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    let mut vm_interface = VM_INTERFACE_LIST[vm_id].lock();
     vm_interface.ivc_arg = ivc_arg;
 }
 
 pub fn vm_interface_ivc_arg(vm_id: usize) -> usize {
-    let vm_interface = VM_IF_LIST[vm_id].lock();
+    let vm_interface = VM_INTERFACE_LIST[vm_id].lock();
     vm_interface.ivc_arg
 }
 
 pub fn vm_interface_set_ivc_arg_ptr(vm_id: usize, ivc_arg_ptr: usize) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    let mut vm_interface = VM_INTERFACE_LIST[vm_id].lock();
     vm_interface.ivc_arg_ptr = ivc_arg_ptr;
 }
 
 pub fn vm_interface_ivc_arg_ptr(vm_id: usize) -> usize {
-    let vm_interface = VM_IF_LIST[vm_id].lock();
+    let vm_interface = VM_INTERFACE_LIST[vm_id].lock();
     vm_interface.ivc_arg_ptr
 }
 
 // new if for vm migration
+/* for migration?
 pub fn vm_interface_init_mem_map(vm_id: usize, len: usize) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
+    let mut vm_interface = VM_INTERFACE_LIST[vm_id].lock();
     vm_interface.mem_map = Some(FlexBitmap::new(len));
 }
-
-pub fn vm_interface_set_mem_map_cache(vm_id: usize, pf: PageFrame) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
-    vm_interface.mem_map_cache = Some(Arc::new(pf));
-}
-
-pub fn vm_interface_mem_map_cache(vm_id: usize) -> Option<Arc<PageFrame>> {
-    let vm_interface = VM_IF_LIST[vm_id].lock();
-    vm_interface.mem_map_cache.clone()
-}
-
-pub fn vm_interface_dirty_mem_map(vm_id: usize) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
-    vm_interface.mem_map.as_mut().unwrap().init_dirty();
-}
-
+*/
+/*  console and net related
 pub fn vm_interface_set_mem_map_bit(vm: Vm, pa: usize) {
-    let mut vm_interface = VM_IF_LIST[vm.id()].lock();
+    let mut vm_interface = VM_INTERFACE_LIST[vm.id()].lock();
     let mut bit = 0;
     for i in 0..vm.region_num() {
         let start = vm.pa_start(i);
@@ -153,48 +118,7 @@ pub fn vm_interface_set_mem_map_bit(vm: Vm, pa: usize) {
     }
     panic!("vm_interface_set_mem_map_bit: illegal pa 0x{:x}", pa);
 }
-
-pub fn vm_interface_set_mem_map(vm_id: usize, bit: usize, len: usize) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
-    vm_interface.mem_map.as_mut().unwrap().set_bits(bit, len, true);
-}
-
-pub fn vm_interface_clear_mem_map(vm_id: usize) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
-    vm_interface.mem_map.as_mut().unwrap().clear();
-}
-
-pub fn vm_interface_copy_mem_map(vm_id: usize) {
-    let mut vm_interface = VM_IF_LIST[vm_id].lock();
-    let mem_map_cache = vm_interface.mem_map_cache.clone();
-    let map = vm_interface.mem_map.as_mut().unwrap();
-    // map.set(0x15, true);
-    // TODO: hard code for offset 0x15000
-    // info!(
-    //     "vm_interface_copy_mem_map: dirty mem page num {}, first dirty page 0x{:x}, bitmap len {:x}",
-    //     map.sum(),
-    //     map.first(),
-    //     size_of::<u64>() * map.vec_len()
-    // );
-    memcpy_safe(
-        mem_map_cache.as_ref().unwrap().pa() as *const u8,
-        map.slice() as *const _ as *const u8,
-        size_of::<u64>() * map.vec_len(),
-    );
-    // clear bitmap after copy
-    map.clear();
-}
-
-pub fn vm_interface_mem_map_page_num(vm_id: usize) -> usize {
-    let vm_interface = VM_IF_LIST[vm_id].lock();
-    let map = vm_interface.mem_map.as_ref().unwrap();
-    8 * map.vec_len() / PAGE_SIZE_4K
-}
-
-pub fn vm_interface_mem_map_dirty_sum(vm_id: usize) -> usize {
-    let vm_interface = VM_IF_LIST[vm_id].lock();
-    vm_interface.mem_map.as_ref().unwrap().sum()
-}
+*/
 // End vm interface func implementation
 
 #[derive(Clone, Copy)]
@@ -227,8 +151,7 @@ pub struct VmInterface {
     pub mac: [u8; 6],
     pub ivc_arg: usize,
     pub ivc_arg_ptr: usize,
-    pub mem_map: Option<FlexBitmap>,
-    pub mem_map_cache: Option<Arc<PageFrame>>,
+    // pub mem_map: Option<FlexBitmap>,
 }
 
 impl VmInterface {
@@ -240,8 +163,7 @@ impl VmInterface {
             mac: [0; 6],
             ivc_arg: 0,
             ivc_arg_ptr: 0,
-            mem_map: None,
-            mem_map_cache: None,
+            // mem_map: None,
         }
     }
 
@@ -252,8 +174,7 @@ impl VmInterface {
         self.mac = [0; 6];
         self.ivc_arg = 0;
         self.ivc_arg_ptr = 0;
-        self.mem_map = None;
-        self.mem_map_cache = None;
+        // self.mem_map = None;
     }
 }
 
@@ -276,24 +197,18 @@ impl VmPa {
 
 // #[repr(align(4096))]
 #[derive(Clone)]
-pub struct Vm {
-    pub inner: Arc<Mutex<VmInner>>,
+pub struct Vm<I: PagingIf> {
+    pub inner: Arc<Mutex<VmInner<I>>>,
 }
 
-impl Vm {
-    pub fn inner(&self) -> Arc<Mutex<VmInner>> {
+impl <I: PagingIf> Vm<I> {
+    pub fn inner(&self) -> Arc<Mutex<VmInner<I>>> where I:PagingIf {
         self.inner.clone()
     }
 
-    pub fn default() -> Vm {
+    pub fn new(id: usize, page_table: A64HVPageTable<I>) -> Self  {
         Vm {
-            inner: Arc::new(Mutex::new(VmInner::default())),
-        }
-    }
-
-    pub fn new(id: usize) -> Vm {
-        Vm {
-            inner: Arc::new(Mutex::new(VmInner::new(id))),
+            inner: Arc::new(Mutex::new(VmInner::new(id, page_table))),
         }
     }
 
@@ -335,24 +250,12 @@ impl Vm {
 
     pub fn med_blk_id(&self) -> usize {
         let vm_inner = self.inner.lock();
-        // match self.config().mediated_block_index() {
-        //     None => {
-        //         panic!("vm {} do not have mediated blk", vm_inner.id);
-        //     }
-        //     Some(idx) => idx,
-        // }
         match vm_inner.config.as_ref().unwrap().mediated_block_index() {
             None => {
                 panic!("vm {} do not have mediated blk", vm_inner.id);
             }
             Some(idx) => idx,
         }
-        // match vm_inner.med_blk_id {
-        //     None => {
-        //         panic!("vm {} do not have mediated blk", vm_inner.id);
-        //     }
-        //     Some(idx) => idx,
-        // }
     }
 
     pub fn dtb(&self) -> Option<*mut fdt::myctypes::c_void> {
@@ -475,70 +378,46 @@ impl Vm {
         vm_inner.intc_dev_id
     }
 
-    pub fn pt_map_range(&self, ipa: usize, len: usize, pa: usize, pte: usize, map_block: bool) {
+    pub fn pt_map_range(&self, ipa: usize, len: usize, pa: usize, flags: MappingFlags, allow_huge: bool) {
         let vm_inner = self.inner.lock();
-        match &vm_inner.pt {
-            Some(pt) => pt.pt_map_range(ipa, len, pa, pte, map_block),
+        match &vm_inner.page_table {
+            // Some(page_table) => page_table.pt_map_range(ipa, len, pa, pte, map_block),
+            Some(page_table) => {
+                page_table.map_region(ipa, pa, len, flags, allow_huge)?;
+            }
             None => {
-                panic!("Vm::pt_map_range: vm{} pt is empty", vm_inner.id);
+                panic!("Vm::pt_map_range: vm{} page_table is empty", vm_inner.id);
             }
         }
     }
 
     pub fn pt_unmap_range(&self, ipa: usize, len: usize, map_block: bool) {
         let vm_inner = self.inner.lock();
-        match &vm_inner.pt {
-            Some(pt) => pt.pt_unmap_range(ipa, len, map_block),
+        match &vm_inner.page_table {
+            // Some(page_table) => page_table.pt_unmap_range(ipa, len, map_block),
+            Some(page_table) => {
+                page_table.unmap_region(ipa, len)?;
+            }
             None => {
-                panic!("Vm::pt_umnmap_range: vm{} pt is empty", vm_inner.id);
+                panic!("Vm::pt_umnmap_range: vm{} page_table is empty", vm_inner.id);
             }
         }
     }
 
-    // ap: access permission
-    pub fn pt_set_access_permission(&self, ipa: usize, ap: usize) -> (usize, usize) {
-        let vm_inner = self.inner.lock();
-        match &vm_inner.pt {
-            Some(pt) => {
-                return pt.access_permission(ipa, PAGE_SIZE_4K, ap);
-            }
-            None => {
-                panic!("pt_set_access_permission: vm{} pt is empty", vm_inner.id);
-            }
-        }
-    }
-
-    pub fn pt_read_only(&self) {
-        let vm_inner = self.inner.lock();
-        match vm_inner.pt.clone() {
-            Some(pt) => {
-                let num = vm_inner.mem_region_num;
-                drop(vm_inner);
-                for i in 0..num {
-                    let vm_inner = self.inner.lock();
-                    let ipa_start = vm_inner.pa_region[i].pa_start + vm_inner.pa_region[i].offset as usize;
-                    let len = vm_inner.pa_region[i].pa_length;
-                    drop(vm_inner);
-                    pt.access_permission(ipa_start, len, PTE_S2_FIELD_AP_RO);
-                }
-            }
-            None => {
-                panic!("Vm::read_only: vm{} pt is empty", vm_inner.id);
-            }
-        }
-    }
-
+    /* 
+    /// Modify to set page_table when new a VM (in fn new(id: usize, page_table: A64HVPageTable<I>) -> Self)
     pub fn set_pt(&self, pt_dir_frame: PageFrame) {
         let mut vm_inner = self.inner.lock();
-        vm_inner.pt = Some(PageTable::new(pt_dir_frame))
+        vm_inner.page_table = Some(PageTable::new(pt_dir_frame))
     }
+    */
 
     pub fn pt_dir(&self) -> usize {
         let vm_inner = self.inner.lock();
-        match &vm_inner.pt {
-            Some(pt) => return pt.base_pa(),
+        match &vm_inner.page_table {
+            Some(page_table) => return page_table.root_paddr(),
             None => {
-                panic!("Vm::pt_dir: vm{} pt is empty", vm_inner.id);
+                panic!("Vm::pt_dir: vm{} page_table is empty", vm_inner.id);
             }
         }
     }
@@ -664,10 +543,6 @@ impl Vm {
                 return self.inner.lock().emu_devs[idx].clone();
             }
         }
-        // info!("emu_console_dev ipa {:x}", ipa);
-        // for (idx, emu_dev_cfg) in self.config().emulated_device_list().iter().enumerate() {
-        //     info!("emu dev[{}], ipa 0x{:x}", idx, emu_dev_cfg.base_ipa);
-        // }
         return EmuDevs::None;
     }
 
@@ -691,7 +566,6 @@ impl Vm {
     }
 
     pub fn vcpuid_to_pcpuid(&self, vcpuid: usize) -> Result<usize, ()> {
-        // info!("vcpuid_to_pcpuid");
         let vm_inner = self.inner.lock();
         if vcpuid < vm_inner.cpu_num {
             let vcpu = vm_inner.vcpu_list[vcpuid].clone();
@@ -736,7 +610,16 @@ impl Vm {
 
     pub fn show_pagetable(&self, ipa: usize) {
         let vm_inner = self.inner.lock();
-        vm_inner.pt.as_ref().unwrap().show_pt(ipa);
+        // vm_inner.page_table.as_ref().unwrap().show_pt(ipa);
+        match &vm_inner.page_table {
+            Some(page_table) => {
+                let result = page_table.query(ipa);
+                info!("Paging result for {}: {}", ipa, result);
+            }
+            None => {
+                panic!("Vm::pt_dir: vm{} page_table is empty", vm_inner.id);
+            }
+        }
     }
 
     pub fn ready(&self) -> bool {
@@ -758,16 +641,36 @@ impl Vm {
         let mut inner = self.inner.lock();
         inner.share_mem_base += len;
     }
+
+    pub fn vm_ipa2pa(&self, ipa: usize) -> usize {
+        if ipa == 0 {
+            info!("vm_ipa2pa: VM {} access invalid ipa {:x}", self.id(), ipa);
+            return 0;
+        }
+    
+        for i in 0..self.mem_region_num() {
+            if in_range(
+                (ipa as isize - self.pa_offset(i) as isize) as usize,
+                self.pa_start(i),
+                self.pa_length(i),
+            ) {
+                return (ipa as isize - self.pa_offset(i) as isize) as usize;
+            }
+        }
+    
+        info!("vm_ipa2pa: VM {} access invalid ipa {:x}", self.id(), ipa);
+        return 0;
+    }
 }
 
 #[repr(align(4096))]
-pub struct VmInner {
+pub struct VmInner<I: PagingIf> {
     pub id: usize,
     pub ready: bool,
     pub config: Option<VmConfigEntry>,
     pub dtb: Option<usize>,
     // memory config
-    pub pt: Option<PageTable>,
+    pub page_table: Option<A64HVPageTable<I>>,
     pub mem_region_num: usize,
     pub pa_region: Vec<VmPa>, // Option<[VmPa; VM_MEM_REGION_MAX]>,
 
@@ -784,11 +687,8 @@ pub struct VmInner {
     pub intc_dev_id: usize,
     pub int_bitmap: Option<BitMap<BitAlloc256>>,
 
-    // migration
     // pub migration_state: bool,
     pub share_mem_base: usize,
-    pub migrate_save_pf: Vec<PageFrame>,
-    pub migrate_restore_pf: Vec<PageFrame>,
 
     // iommu
     pub iommu_ctx_id: Option<usize>,
@@ -798,43 +698,14 @@ pub struct VmInner {
     pub med_blk_id: Option<usize>,
 }
 
-impl VmInner {
-    pub const fn default() -> VmInner {
-        VmInner {
-            id: 0,
-            ready: false,
-            config: None,
-            dtb: None,
-            pt: None,
-            mem_region_num: 0,
-            pa_region: Vec::new(),
-            entry_point: 0,
-
-            has_master: false,
-            vcpu_list: Vec::new(),
-            cpu_num: 0,
-            ncpu: 0,
-
-            intc_dev_id: 0,
-            int_bitmap: Some(BitAlloc4K::default()),
-            // migration_state: false,
-            share_mem_base: SHARE_MEM_BASE, // hard code
-            migrate_save_pf: vec![],
-            migrate_restore_pf: vec![],
-
-            iommu_ctx_id: None,
-            emu_devs: Vec::new(),
-            med_blk_id: None,
-        }
-    }
-
-    pub fn new(id: usize) -> VmInner {
+impl <I:PagingIf> VmInner<I> {
+    pub fn new(id: usize, page_table: A64HVPageTable<I>) -> Self {
         VmInner {
             id,
             ready: false,
             config: None,
             dtb: None,
-            pt: None,
+            page_table: Some(page_table),
             mem_region_num: 0,
             pa_region: Vec::new(),
             entry_point: 0,
@@ -847,9 +718,7 @@ impl VmInner {
             intc_dev_id: 0,
             int_bitmap: Some(BitAlloc4K::default()),
             // migration_state: false,
-            share_mem_base: SHARE_MEM_BASE, // hard code
-            migrate_save_pf: vec![],
-            migrate_restore_pf: vec![],
+            share_mem_base: Platform::SHARE_MEM_BASE, // hard code
             iommu_ctx_id: None,
             emu_devs: Vec::new(),
             med_blk_id: None,
@@ -857,7 +726,7 @@ impl VmInner {
     }
 }
 
-pub static VM_LIST: Mutex<Vec<Vm>> = Mutex::new(Vec::new());
+pub static VM_LIST: Mutex<Vec<Vm<PagingIf>>> = Mutex::new(Vec::new());
 
 pub fn push_vm(id: usize) -> Result<(), ()> {
     let mut vm_list = VM_LIST.lock();
@@ -890,26 +759,8 @@ pub fn vm_list_size() -> usize {
     vm_list.len()
 }
 
-pub fn vm_ipa2pa(vm: Vm, ipa: usize) -> usize {
-    if ipa == 0 {
-        info!("vm_ipa2pa: VM {} access invalid ipa {:x}", vm.id(), ipa);
-        return 0;
-    }
-
-    for i in 0..vm.mem_region_num() {
-        if in_range(
-            (ipa as isize - vm.pa_offset(i) as isize) as usize,
-            vm.pa_start(i),
-            vm.pa_length(i),
-        ) {
-            return (ipa as isize - vm.pa_offset(i) as isize) as usize;
-        }
-    }
-
-    info!("vm_ipa2pa: VM {} access invalid ipa {:x}", vm.id(), ipa);
-    return 0;
-}
-
+/* 
+/// No use in the repo
 pub fn vm_pa2ipa(vm: Vm, pa: usize) -> usize {
     if pa == 0 {
         info!("vm_pa2ipa: VM {} access invalid pa {:x}", vm.id(), pa);
@@ -926,6 +777,7 @@ pub fn vm_pa2ipa(vm: Vm, pa: usize) -> usize {
     return 0;
 }
 
+/// No use in the repo
 pub fn pa2ipa(pa_region: &Vec<VmPa>, pa: usize) -> usize {
     if pa == 0 {
         info!("pa2ipa: access invalid pa {:x}", pa);
@@ -942,6 +794,7 @@ pub fn pa2ipa(pa_region: &Vec<VmPa>, pa: usize) -> usize {
     return 0;
 }
 
+/// for virtio
 pub fn ipa2pa(pa_region: &Vec<VmPa>, ipa: usize) -> usize {
     if ipa == 0 {
         // info!("ipa2pa: access invalid ipa {:x}", ipa);
@@ -961,3 +814,4 @@ pub fn ipa2pa(pa_region: &Vec<VmPa>, ipa: usize) -> usize {
     // info!("ipa2pa: access invalid ipa {:x}", ipa);
     return 0;
 }
+*/

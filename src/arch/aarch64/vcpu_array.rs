@@ -10,7 +10,7 @@
 
 use alloc::slice::{Iter, IterMut};
 
-use crate::arch::{ContextFrame, current_cpu};
+use crate::arch::{ContextFrame, current_cpu, PLAT_DESC};
 use crate::arch::vcpu::Vcpu;
 use crate::arch::vm::VM_NUM_MAX;
 use crate::arch::interrupt::interrupt_cpu_enable;
