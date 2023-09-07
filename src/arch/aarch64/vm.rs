@@ -128,26 +128,9 @@ pub enum VmState {
     VmActive = 2,
 }
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum VmType {
-    VmTOs = 0,
-    VmTBma = 1,
-}
-
-impl VmType {
-    pub fn from_usize(value: usize) -> VmType {
-        match value {
-            0 => VmType::VmTOs,
-            1 => VmType::VmTBma,
-            _ => panic!("Unknown VmType value: {}", value),
-        }
-    }
-}
-
 pub struct VmInterface {
     pub master_cpu_id: usize,
     pub state: VmState,
-    pub vm_type: VmType,
     pub mac: [u8; 6],
     pub ivc_arg: usize,
     pub ivc_arg_ptr: usize,
@@ -159,7 +142,6 @@ impl VmInterface {
         VmInterface {
             master_cpu_id: 0,
             state: VmState::VmPending,
-            vm_type: VmType::VmTBma,
             mac: [0; 6],
             ivc_arg: 0,
             ivc_arg_ptr: 0,

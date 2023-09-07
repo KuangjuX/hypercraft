@@ -16,7 +16,7 @@ use spin::Mutex;
 
 // use crate::board::*;
 use crate::arch::emu::EmuDeviceType;
-use crate::arch::vm::{vm, Vm, vm_ipa2pa, VM_NUM_MAX};
+use crate::arch::vm::{vm, Vm, VM_NUM_MAX};
 use crate::arch::{active_vm, memcpy_safe};
 use crate::arch::utils::{BitAlloc, BitAlloc16};
 use crate::arch::manageVm::vmm_init_gvm;
@@ -574,7 +574,7 @@ pub fn vm_cfg_remove_vm_entry(vm_id: usize) {
 
 /* Generate a new VM Config Entry, set basic value */
 pub fn vm_cfg_add_vm(config_ipa: usize) -> Result<usize, ()> {
-    let config_pa = vm_ipa2pa(active_vm().unwrap(), config_ipa);
+    let config_pa = active_vm().unwrap().vm_ipa2pa(config_ipa);
     let (
         vm_name_ipa,
         vm_name_length,
@@ -588,7 +588,7 @@ pub fn vm_cfg_add_vm(config_ipa: usize) -> Result<usize, ()> {
     info!("\n\nStart to prepare configuration for new VM");
 
     // Copy VM name from user ipa.
-    let vm_name_pa = vm_ipa2pa(active_vm().unwrap(), vm_name_ipa);
+    let vm_name_pa = active_vm().unwrap().vm_ipa2pa(vm_name_ipa);
     if vm_name_pa == 0 {
         info!("illegal vm_name_ipa {:x}", vm_name_ipa);
         return Err(());
@@ -611,7 +611,7 @@ pub fn vm_cfg_add_vm(config_ipa: usize) -> Result<usize, ()> {
     };
 
     // Copy VM cmdline from user ipa.
-    let cmdline_pa = vm_ipa2pa(active_vm().unwrap(), cmdline_ipa);
+    let cmdline_pa = active_vm().unwrap().vm_ipa2pa(cmdline_ipa);
     if cmdline_pa == 0 {
         info!("illegal cmdline_ipa {:x}", cmdline_ipa);
         return Err(());
@@ -706,7 +706,7 @@ pub fn vm_cfg_add_emu_dev(
     let emu_cfg_list = vm_cfg.emulated_device_list();
 
     // Copy emu device name from user ipa.
-    let name_pa = vm_ipa2pa(active_vm().unwrap(), name_ipa);
+    let name_pa = active_vm().unwrap().vm_ipa2pa(name_ipa);
     if name_pa == 0 {
         info!("illegal emulated device name_ipa {:x}", name_ipa);
         return Err(());
@@ -721,7 +721,7 @@ pub fn vm_cfg_add_emu_dev(
         }
     };
     // Copy emu device cfg list from user ipa.
-    let cfg_list_pa = vm_ipa2pa(active_vm().unwrap(), cfg_list_ipa);
+    let cfg_list_pa = active_vm().unwrap().vm_ipa2pa(cfg_list_ipa);
     if cfg_list_pa == 0 {
         info!("illegal emulated device cfg_list_ipa {:x}", cfg_list_ipa);
         return Err(());
@@ -823,7 +823,7 @@ pub fn vm_cfg_add_passthrough_device_irqs(vmid: usize, irqs_base_ipa: usize, irq
     );
 
     // Copy passthrough device irqs from user ipa.
-    let irqs_base_pa = vm_ipa2pa(active_vm().unwrap(), irqs_base_ipa);
+    let irqs_base_pa = active_vm().unwrap().vm_ipa2pa(irqs_base_ipa);
     if irqs_base_pa == 0 {
         info!("illegal irqs_base_ipa {:x}", irqs_base_ipa);
         return Err(());
@@ -858,7 +858,7 @@ pub fn vm_cfg_add_passthrough_device_streams_ids(
     );
 
     // Copy passthrough device streams ids from user ipa.
-    let streams_ids_base_pa = vm_ipa2pa(active_vm().unwrap(), streams_ids_base_ipa);
+    let streams_ids_base_pa = active_vm().unwrap().vm_ipa2pa(streams_ids_base_ipa);
     if streams_ids_base_pa == 0 {
         info!("illegal streams_ids_base_ipa {:x}", streams_ids_base_ipa);
         return Err(());
@@ -897,7 +897,7 @@ pub fn vm_cfg_add_dtb_dev(
     );
 
     // Copy DTB device name from user ipa.
-    let name_pa = vm_ipa2pa(active_vm().unwrap(), name_ipa);
+    let name_pa = active_vm().unwrap().vm_ipa2pa(name_ipa);
     if name_pa == 0 {
         info!("illegal dtb_dev name ipa {:x}", name_ipa);
         return Err(());
@@ -924,7 +924,7 @@ pub fn vm_cfg_add_dtb_dev(
     );
 
     // Copy DTB device irq list from user ipa.
-    let irq_list_pa = vm_ipa2pa(active_vm().unwrap(), irq_list_ipa);
+    let irq_list_pa = active_vm().unwrap().vm_ipa2pa(irq_list_ipa);
     if irq_list_pa == 0 {
         info!("illegal dtb_dev irq list ipa {:x}", irq_list_ipa);
         return Err(());
@@ -1034,7 +1034,7 @@ pub fn vm_cfg_upload_kernel_image(
         vmid, cache_ipa, load_offset, load_size
     );
     // Get cache pa.
-    let cache_pa = vm_ipa2pa(active_vm().unwrap(), cache_ipa);
+    let cache_pa = active_vm().unwrap().vm_ipa2pa(cache_ipa);
     if cache_pa == 0 {
         info!("illegal cache ipa {:x}", cache_ipa);
         return Err(());
