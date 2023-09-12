@@ -10,6 +10,7 @@
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use page_table::PagingIf;
 use core::mem::size_of;
 use spin::Mutex;
 
@@ -24,7 +25,6 @@ use crate::traits::ContextFrameTrait;
 use crate::arch::vm::{Vm, VmState, vm_interface_set_state};
 use crate::arch::gic::{GICD, GICC, GICH};
 use crate::arch::interrupt::{interrupt_vm_inject, cpu_interrupt_unmask};
-use crate::arch::psci::power_arch_cpu_shutdown;
 use crate::arch::cpu::CpuState;
 
 #[derive(Clone, Copy, Debug)]
@@ -40,31 +40,18 @@ pub struct Vcpu {
 }
 
 impl Vcpu {
-    pub fn default() -> Vcpu {
+    pub fn new(id:usize, phys_id: usize) -> Vcpu {
         Vcpu {
-            inner: Arc::new(Mutex::new(VcpuInner::default())),
+            inner: Arc::new(Mutex::new(VcpuInner::new(id, phys_id))),
         }
     }
 
-    pub fn init(&self, vm: Vm, vcpu_id: usize) {
+    pub fn init(&self, vm: Vm<dyn PagingIf>) {
         let mut inner = self.inner.lock();
         inner.vm = Some(vm.clone());
-        inner.id = vcpu_id;
-        inner.phys_id = 0;
         drop(inner);
         vcpu_arch_init(vm, self.clone());
         self.reset_context();
-    }
-
-    pub fn shutdown(&self) {
-        info!(
-            "Core {} (vm {} vcpu {}) shutdown ok",
-            current_cpu().cpu_id,
-            active_vm_id(),
-            active_vcpu_id()
-        );
-        // crate::board::Platform::cpu_shutdown();
-        power_arch_cpu_shutdown();
     }
 
     pub fn context_vm_store(&self) {
@@ -163,7 +150,7 @@ impl Vcpu {
         inner.id
     }
 
-    pub fn vm(&self) -> Option<Vm> {
+    pub fn vm(&self) -> Option<Vm<dyn PagingIf>> {
         let inner = self.inner.lock();
         inner.vm.clone()
     }
@@ -184,11 +171,6 @@ impl Vcpu {
     pub fn reset_context(&self) {
         let mut inner = self.inner.lock();
         inner.reset_context();
-    }
-
-    pub fn reset_vmpidr(&self) {
-        let mut inner = self.inner.lock();
-        inner.reset_vmpidr();
     }
 
     pub fn context_ext_regs_store(&self) {
@@ -249,17 +231,17 @@ pub struct VcpuInner {
     pub id: usize,
     pub phys_id: usize,
     pub state: VcpuState,
-    pub vm: Option<Vm>,
+    pub vm: Option<Vm<dyn PagingIf>>,
     pub int_list: Vec<usize>,
     pub vcpu_ctx: ContextFrame,
     pub vm_ctx: VmContext,
 }
 
 impl VcpuInner {
-    pub fn default() -> VcpuInner {
+    pub fn new(id: usize, phys_id: usize) -> VcpuInner {
         VcpuInner {
-            id: 0,
-            phys_id: 0,
+            id: id,
+            phys_id: phys_id,
             state: VcpuState::VcpuInv,
             vm: None,
             int_list: vec![],
@@ -289,30 +271,9 @@ impl VcpuInner {
         let mut vmpidr = 0;
         vmpidr |= 1 << 31;
 
-        #[cfg(feature = "tx2")]
-        if self.vm_id() == 0 {
-            // A57 is cluster #1 for L4T
-            vmpidr |= 0x100;
-        }
-
         vmpidr |= self.id;
         self.vm_ctx.vmpidr_el2 = vmpidr as u64;
     }
-
-    fn reset_vmpidr(&mut self) {
-        let mut vmpidr = 0;
-        vmpidr |= 1 << 31;
-
-        #[cfg(feature = "tx2")]
-        if self.vm_id() == 0 {
-            // A57 is cluster #1 for L4T
-            vmpidr |= 0x100;
-        }
-
-        vmpidr |= self.id;
-        self.vm_ctx.vmpidr_el2 = vmpidr as u64;
-    }
-
     fn reset_vtimer_offset(&mut self) {
         let curpct = cortex_a::registers::CNTPCT_EL0.get() as u64;
         self.vm_ctx.cntvoff_el2 = curpct - self.vm_ctx.cntvct_el0;
@@ -397,7 +358,7 @@ pub fn save_vcpu_gic(cur_vcpu: Option<Vcpu>, trgt_vcpu: Vcpu) {
     }
 }
 
-pub fn vcpu_arch_init(vm: Vm, vcpu: Vcpu) {
+pub fn vcpu_arch_init(vm: Vm<dyn PagingIf>, vcpu: Vcpu) {
     let config = vm.config();
     let mut vcpu_inner = vcpu.inner.lock();
     vcpu_inner.vcpu_ctx.set_argument(config.device_tree_load_ipa());
@@ -447,17 +408,6 @@ pub fn vcpu_run(announce: bool) -> ! {
         vm_interface_set_state(active_vm_id(), VmState::VmActive);
 
         vcpu.context_vm_restore();
-        /*
-        if announce {
-            crate::device::virtio_net_announce(vm);
-        }
-        */
-        // tlb_invalidate_guest_all();
-        // for i in 0..vm.mem_region_num() {
-        //     unsafe {
-        //         cache_invalidate_d(vm.pa_start(i), vm.pa_length(i));
-        //     }
-        // }
     }
     extern "C" {
         fn context_vm_entry(ctx: usize) -> !;

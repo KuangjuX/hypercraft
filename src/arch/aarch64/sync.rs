@@ -11,7 +11,6 @@
 use crate::arch::emu::{EmuContext, emu_handler};
 use crate::arch::{current_cpu, active_vm};
 use crate::arch::exception::*;
-use crate::arch::psci::smc_guest_handler;
 use crate::arch::hvc::hvc_guest_handler;
 
 pub const HVC_RETURN_REG: usize = 0;
@@ -62,22 +61,6 @@ pub fn data_abort_handler() {
             emu_ctx.address, elr
         );
     }
-    let val = elr + exception_next_instruction_step();
-    current_cpu().set_elr(val);
-}
-
-pub fn smc_handler() {
-    let fid = current_cpu().get_gpr(0);
-    let x1 = current_cpu().get_gpr(1);
-    let x2 = current_cpu().get_gpr(2);
-    let x3 = current_cpu().get_gpr(3);
-
-    if !smc_guest_handler(fid, x1, x2, x3) {
-        warn!("smc_handler: unknown fid 0x{:x}", fid);
-        current_cpu().set_gpr(0, 0);
-    }
-
-    let elr = current_cpu().get_elr();
     let val = elr + exception_next_instruction_step();
     current_cpu().set_elr(val);
 }

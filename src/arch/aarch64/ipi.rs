@@ -2,9 +2,9 @@ use alloc::vec::Vec;
 
 use spin::Mutex;
 
+use crate::HyperCraftHal;
 use arm_gic::SGI_RANGE;
 use crate::arch::cpu::CPU_INTERFACE_LIST;
-use crate::arch::manageVm::VmmEvent;
 use crate::arch::vm::Vm;
 use crate::arch::{GICD, current_cpu};
 
@@ -23,12 +23,6 @@ pub enum InitcEvent {
     None,
 }
 
-#[derive(Copy, Clone)]
-pub enum PowerEvent {
-    PsciIpiCpuOn,
-    PsciIpiCpuOff,
-    PsciIpiCpuReset,
-}
 
 #[derive(Copy, Clone)]
 pub struct IpiInitcMessage {
@@ -38,19 +32,6 @@ pub struct IpiInitcMessage {
     pub val: u8,
 }
 
-#[derive(Copy, Clone)]
-pub struct IpiPowerMessage {
-    pub src: usize,
-    pub event: PowerEvent,
-    pub entry: usize,
-    pub context: usize,
-}
-
-#[derive(Copy, Clone)]
-pub struct IpiVmmMsg {
-    pub vmid: usize,
-    pub event: VmmEvent,
-}
 
 #[derive(Clone, Copy)]
 pub struct IpiHvcMsg {
@@ -78,8 +59,6 @@ pub enum IpiType {
 #[derive(Clone)]
 pub enum IpiInnerMsg {
     Initc(IpiInitcMessage),
-    Power(IpiPowerMessage),
-    VmmMsg(IpiVmmMsg),
     HvcMsg(IpiHvcMsg),
     IntInjectMsg(IpiIntInjectMsg),
     None,
@@ -175,7 +154,7 @@ pub fn ipi_send_msg(target_id: usize, ipi_type: IpiType, ipi_message: IpiInnerMs
     ipi_send(target_id, msg)
 }
 
-pub fn ipi_intra_broadcast_msg(vm: Vm, ipi_type: IpiType, msg: IpiInnerMsg) -> bool {
+pub fn ipi_intra_broadcast_msg(vm: Vm<dyn HyperCraftHal>, ipi_type: IpiType, msg: IpiInnerMsg) -> bool {
     let mut i = 0;
     let mut n = 0;
     while n < (vm.cpu_num() - 1) {

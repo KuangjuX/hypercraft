@@ -13,10 +13,11 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::mem::size_of;
 use spin::Mutex;
+use lazy_static::lazy_static;
+use alloc::boxed::Box;
 
 use crate::arch::vgic::Vgic;
 use crate::arch::vcpu::Vcpu;
-use crate::arch::{PlatOperation, Platform};
 use crate::arch::utils::*;
 use crate::arch::emu::EmuDevs;
 use crate::arch::vmConfig::VmConfigEntry;
@@ -69,16 +70,6 @@ pub fn vm_interface_cmp_mac(vm_id: usize, frame: &[u8]) -> bool {
         }
     }
     true
-}
-
-pub fn vm_interface_set_ivc_arg(vm_id: usize, ivc_arg: usize) {
-    let mut vm_interface = VM_INTERFACE_LIST[vm_id].lock();
-    vm_interface.ivc_arg = ivc_arg;
-}
-
-pub fn vm_interface_ivc_arg(vm_id: usize) -> usize {
-    let vm_interface = VM_INTERFACE_LIST[vm_id].lock();
-    vm_interface.ivc_arg
 }
 
 pub fn vm_interface_set_ivc_arg_ptr(vm_id: usize, ivc_arg_ptr: usize) {
@@ -152,7 +143,6 @@ impl VmInterface {
     fn reset(&mut self) {
         self.master_cpu_id = 0;
         self.state = VmState::VmPending;
-        self.vm_type = VmType::VmTBma;
         self.mac = [0; 6];
         self.ivc_arg = 0;
         self.ivc_arg_ptr = 0;
@@ -240,6 +230,7 @@ impl <I: PagingIf> Vm<I> {
         }
     }
 
+    /* 
     pub fn dtb(&self) -> Option<*mut fdt::myctypes::c_void> {
         let vm_inner = self.inner.lock();
         vm_inner.dtb.map(|x| x as *mut fdt::myctypes::c_void)
@@ -249,6 +240,7 @@ impl <I: PagingIf> Vm<I> {
         let mut vm_inner = self.inner.lock();
         vm_inner.dtb = Some(val as usize);
     }
+    */
 
     pub fn vcpu(&self, index: usize) -> Option<Vcpu> {
         let vm_inner = self.inner.lock();
@@ -283,41 +275,6 @@ impl <I: PagingIf> Vm<I> {
         let mut vm_inner = self.inner.lock();
         vm_inner.emu_devs.clear();
         vm_inner.vcpu_list.clear();
-    }
-
-    pub fn select_vcpu2assign(&self, cpu_id: usize) -> Option<Vcpu> {
-        let cfg_master = self.config().cpu_master();
-        let cfg_cpu_num = self.config().cpu_num();
-        let cfg_cpu_allocate_bitmap = self.config().cpu_allocated_bitmap();
-        // make sure that vcpu assign is executed sequentially, otherwise
-        // the PCPUs may found that vm.cpu_num() == 0 at the same time and
-        // if cfg_master is not setted, they will not set master vcpu for VM
-        let mut vm_inner = self.inner.lock();
-        if (cfg_cpu_allocate_bitmap & (1 << cpu_id)) != 0 && vm_inner.cpu_num < cfg_cpu_num {
-            // vm.vcpu(0) must be the VM's master vcpu
-            let trgt_id = if cpu_id == cfg_master || (!vm_inner.has_master && vm_inner.cpu_num == cfg_cpu_num - 1) {
-                0
-            } else if vm_inner.has_master {
-                cfg_cpu_num - vm_inner.cpu_num
-            } else {
-                // if master vcpu is not assigned, retain id 0 for it
-                cfg_cpu_num - vm_inner.cpu_num - 1
-            };
-            match vm_inner.vcpu_list.get(trgt_id).cloned() {
-                None => None,
-                Some(vcpu) => {
-                    if vcpu.id() == 0 {
-                        vm_interface_set_cpu_id(vm_inner.id, cpu_id);
-                        vm_inner.has_master = true;
-                    }
-                    vm_inner.cpu_num += 1;
-                    vm_inner.ncpu |= 1 << cpu_id;
-                    Some(vcpu)
-                }
-            }
-        } else {
-            None
-        }
     }
 
     pub fn set_entry_point(&self, entry_point: usize) {
@@ -669,9 +626,6 @@ pub struct VmInner<I: PagingIf> {
     pub intc_dev_id: usize,
     pub int_bitmap: Option<BitMap<BitAlloc256>>,
 
-    // pub migration_state: bool,
-    pub share_mem_base: usize,
-
     // iommu
     pub iommu_ctx_id: Option<usize>,
 
@@ -699,8 +653,6 @@ impl <I:PagingIf> VmInner<I> {
 
             intc_dev_id: 0,
             int_bitmap: Some(BitAlloc4K::default()),
-            // migration_state: false,
-            share_mem_base: Platform::SHARE_MEM_BASE, // hard code
             iommu_ctx_id: None,
             emu_devs: Vec::new(),
             med_blk_id: None,
@@ -708,7 +660,10 @@ impl <I:PagingIf> VmInner<I> {
     }
 }
 
-pub static VM_LIST: Mutex<Vec<Vm<PagingIf>>> = Mutex::new(Vec::new());
+/* 
+lazy_static! {
+    static ref VM_LIST: Mutex<Vec<Box<dyn PagingIf>>> = Mutex::new(Vec::new());
+}
 
 pub fn push_vm(id: usize) -> Result<(), ()> {
     let mut vm_list = VM_LIST.lock();
@@ -721,7 +676,7 @@ pub fn push_vm(id: usize) -> Result<(), ()> {
     }
 }
 
-pub fn remove_vm(id: usize) -> Vm {
+pub fn remove_vm(id: usize) -> Vm<dyn PagingIf> {
     let mut vm_list = VM_LIST.lock();
     match vm_list.iter().position(|x| x.id() == id) {
         None => {
@@ -731,7 +686,7 @@ pub fn remove_vm(id: usize) -> Vm {
     }
 }
 
-pub fn vm(id: usize) -> Option<Vm> {
+pub fn vm(id: usize) -> Option<Vm<dyn PagingIf>> {
     let vm_list = VM_LIST.lock();
     vm_list.iter().find(|&x| x.id() == id).cloned()
 }
@@ -740,6 +695,7 @@ pub fn vm_list_size() -> usize {
     let vm_list = VM_LIST.lock();
     vm_list.len()
 }
+*/
 
 /* 
 /// No use in the repo

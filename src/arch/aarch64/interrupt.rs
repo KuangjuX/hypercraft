@@ -2,8 +2,8 @@ use cortex_a::registers::DAIF;
 use tock_registers::interfaces::*;
 use spin::Mutex;
 
+use crate::HyperCraftHal;
 use crate::arch::vm::Vm;
-use crate::arch::manageVm::vmm_ipi_handler;
 use crate::arch::vcpu::{Vcpu, VcpuState};
 use crate::arch::{current_cpu, GICH, active_vm};
 use crate::arch::vgic::{vgic_set_hw_int, vgic_ipi_handler};
@@ -29,17 +29,13 @@ pub fn interrupt_init() {
         if !ipi_register(IpiType::IpiTIntc, vgic_ipi_handler) {
             panic!("interrupt_init: failed to register intc ipi {:#?}", IpiType::IpiTIntc)
         }
-        
-        if !ipi_register(IpiType::IpiTVMM, vmm_ipi_handler) {
-            panic!("interrupt_init: failed to register ipi vmm");
-        }
 
         info!("Interrupt init ok");
     }
 }
 
 
-pub fn interrupt_vm_inject(vm: Vm, vcpu: Vcpu, int_id: usize) {
+pub fn interrupt_vm_inject(vm: Vm<dyn HyperCraftHal>, vcpu: Vcpu, int_id: usize) {
     if vcpu.phys_id() != current_cpu().cpu_id {
         info!(
             "interrupt_vm_inject: Core {} failed to find target (VCPU {} VM {})",
@@ -60,11 +56,11 @@ pub fn interrupt_vm_inject(vm: Vm, vcpu: Vcpu, int_id: usize) {
     vcpu.push_int(int_id);
 }
 
-pub fn interrupt_arch_vm_register(vm: Vm, id: usize) {
+pub fn interrupt_arch_vm_register(vm: Vm<dyn HyperCraftHal>, id: usize) {
     vgic_set_hw_int(vm, id);
 }
 
-pub fn interrupt_vm_register(vm: Vm, id: usize) -> bool {
+pub fn interrupt_vm_register(vm: Vm<dyn HyperCraftHal>, id: usize) -> bool {
 
     let mut glb_bitmap_lock = INTERRUPT_GLB_BITMAP.lock();
     if glb_bitmap_lock.get(id) != 0 && id >= GIC_PRIVATE_INT_NUM {
@@ -78,7 +74,7 @@ pub fn interrupt_vm_register(vm: Vm, id: usize) -> bool {
     true
 }
 
-pub fn interrupt_vm_remove(_vm: Vm, id: usize) {
+pub fn interrupt_vm_remove(_vm: Vm<dyn HyperCraftHal>, id: usize) {
     let mut glb_bitmap_lock = INTERRUPT_GLB_BITMAP.lock();
     // vgic and vm will be removed with struct vm
     glb_bitmap_lock.clear(id);
@@ -109,6 +105,7 @@ pub fn interrupt_cpu_enable(int_id: usize, en: bool) {
 }
 
 pub fn interrupt_handler(int_id: usize) -> bool {
+    // todo()
     if int_id >= 16 && int_id < 32 {
         if let Some(vcpu) = &current_cpu().active_vcpu {
             if let Some(active_vm) = vcpu.vm() {

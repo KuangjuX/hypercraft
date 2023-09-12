@@ -21,6 +21,8 @@ use crate::arch::{active_vm, memcpy_safe};
 use crate::arch::utils::{BitAlloc, BitAlloc16};
 use crate::arch::manageVm::vmm_init_gvm;
 
+use page_table::PagingIf;
+
 pub const NAME_MAX_LEN: usize = 32;
 const CFG_MAX_NUM: usize = 0x10;
 const IRQ_MAX_NUM: usize = 0x40;
@@ -970,7 +972,7 @@ pub fn vm_cfg_add_dtb_dev(
  * Set up GVM configuration;
  * Set VM kernel image load region;
  */
-fn vm_cfg_finish_configuration(vmid: usize, img_size: usize) -> Vm {
+fn vm_cfg_finish_configuration<I:PagingIf>(vmid: usize, img_size: usize) -> Vm<I> {
     // Set up GVM configuration.
     vmm_init_gvm(vmid);
 

@@ -1,3 +1,4 @@
+/* 
 use alloc::vec::Vec;
 use fdt::*;
 
@@ -895,3 +896,4 @@ pub unsafe fn vmm_setup_fdt(vm: Vm) {
         }
     }
 }
+*/

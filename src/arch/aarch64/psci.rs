@@ -1,3 +1,4 @@
+/* 
 use crate::arch::vcpu::{Vcpu, VcpuState, vcpu_arch_init};
 use crate::arch::cpu::CpuState;
 use crate::arch::smc::smc_call;
@@ -222,3 +223,4 @@ pub fn psci_guest_cpu_on(mpidr: usize, entry: usize, ctx: usize) -> usize {
 
     0
 }
+*/

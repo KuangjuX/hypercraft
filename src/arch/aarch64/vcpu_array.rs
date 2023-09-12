@@ -8,6 +8,7 @@
 // MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
+/* 
 use alloc::slice::{Iter, IterMut};
 
 use crate::arch::{ContextFrame, current_cpu, PLAT_DESC};
@@ -106,5 +107,5 @@ pub fn cpu_sched_init() {
         }
     }
 }
-
+*/
 

@@ -1,25 +1,21 @@
 mod contextFrame;
 mod cpu;
-mod config;
+// mod config;
 mod exception;
 mod emu;
 mod ipi;
 mod interrupt;
 mod hvc;
-mod psci;
-mod smc;
 mod sync;
 mod utils;
 mod vcpu;
-mod vcpu_array;
+// mod vcpu_array;
 mod vgic;
 mod vm;
 mod vmConfig;
 mod vmPages;
 mod manageVm;
 mod gic;
-mod ivc;
-mod platform;
 mod timer;
 mod ept;
 
@@ -30,9 +26,7 @@ pub use timer::timer_irq_handler;
 pub use interrupt::{interrupt_handler, interrupt_init};
 pub use gic::{GICC, GICD, GICH, interrupt_arch_enable};
 
-pub use config::*;
-
-pub use platform::{PLAT_DESC, QemuPlatform as Platform, PlatOperation};
+// pub use config::*;
 
 pub use page_table::PageSize;
 

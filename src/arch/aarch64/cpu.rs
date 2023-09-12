@@ -1,14 +1,14 @@
-use alloc::vec::Vec;
-use spin::Mutex;
+use alloc::{vec::Vec, collections::VecDeque};
+use page_table::PagingIf;
+use spin::{Mutex, Once};
+use core::arch::asm;
 
+use crate::{HyperCraftHal, HyperResult, HyperError, HostPhysAddr};
 use crate::arch::ipi::{IpiMessage, IPI_HANDLER_LIST};
 use crate::arch::vcpu::Vcpu;
-use crate::arch::vcpu_array::VcpuArray;
 use crate::arch::vm::Vm;
 use crate::arch::interrupt::cpu_interrupt_unmask;
-use crate::arch::psci::power_arch_init;
-use crate::arch::{ContextFrame, Platform, PlatOperation, PLAT_DESC};
-use crate::arch::platform::PLATFORM_CPU_NUM_MAX;
+use crate::arch::ContextFrame;
 
 use crate::traits::ContextFrameTrait;
 
@@ -54,47 +54,92 @@ impl CpuInterface {
 pub static CPU_INTERFACE_LIST: Mutex<Vec<CpuInterface>> = Mutex::new(Vec::new());
 
 fn cpu_interface_init() {
+    // Suppose only one cpu now. Ipi related, this function is not used now.
     let mut cpu_interface_list = CPU_INTERFACE_LIST.lock();
-    for _ in 0..PLATFORM_CPU_NUM_MAX {
-        cpu_interface_list.push(CpuInterface::default());
-    }
+    cpu_interface_list.push(CpuInterface::default());
 }
 
 #[repr(C)]
 #[repr(align(4096))]
-pub struct Cpu{
+pub struct Cpu<H: HyperCraftHal>{
     pub cpu_id: usize,
     pub cpu_state: CpuState,
-    stack: [u8; CPU_STACK_SIZE],
     pub context_addr: Option<usize>,
 
     pub active_vcpu: Option<Vcpu>,
-    pub vcpu_array: VcpuArray,
+    pub vcpu_queue: Mutex<VecDeque<usize>>,
 
-    // pub sched: SchedType, todo
     pub current_irq: usize,
+    marker: core::marker::PhantomData<H>,
+    // pub sched: SchedType, todo
     // pub cpu_pt: CpuPt,
 }
+/// The base address of the per-CPU memory region.
+static PER_CPU_BASE: Once<HostPhysAddr> = Once::new();
 
-impl Cpu{
-    const fn default() -> Self {
+impl <H: HyperCraftHal> Cpu<H> {
+    const fn new(cpu_id: usize) -> Self {
         Cpu {
-            cpu_id: 0,
+            cpu_id: cpu_id,
             cpu_state: CpuState::CpuInactive,
-            stack: [0; CPU_STACK_SIZE],
             context_addr: None,
-
             active_vcpu: None,
-            vcpu_array: VcpuArray::new(),
-            
+            vcpu_queue: Mutex::new(VecDeque::new()),
+            marker: core::marker::PhantomData,
             current_irq: 0,
-            /*sched: SchedType::None,
-            cpu_pt: CpuPt {
-                lvl1: [0; PTE_PER_PAGE],
-                lvl2: [0; PTE_PER_PAGE],
-                lvl3: [0; PTE_PER_PAGE],
-            },*/
         }
+    }
+
+    pub fn init(boot_id: usize, stack_size: usize) -> HyperResult<()> {
+        let cpu_nums: usize = 1;
+        let pcpu_size = core::mem::size_of::<Cpu<H>>() * cpu_nums;
+        debug!("pcpu_size: {:#x}", pcpu_size);
+        let pcpu_pages = H::alloc_pages((pcpu_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
+            .ok_or(HyperError::NoMemory)?;
+        debug!("pcpu_pages: {:#x}", pcpu_pages);
+        PER_CPU_BASE.call_once(|| pcpu_pages);
+        for cpu_id in 0..cpu_nums {
+            if cpu_id != boot_id {
+                H::alloc_pages((stack_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
+                    .ok_or(HyperError::NoMemory)?
+            }
+            let pcpu: Cpu<H> = Self::new(cpu_id);
+            let ptr = Self::ptr_for_cpu(cpu_id);
+            // Safety: ptr is guaranteed to be properly aligned and point to valid memory owned by
+            // PerCpu. No other CPUs are alive at this point, so it cannot be concurrently modified
+            // either.
+            unsafe { core::ptr::write(ptr as *mut Cpu<H>, pcpu) };
+        }
+
+        // Initialize TP register and set this CPU online to be consistent with secondary CPUs.
+        Self::setup_this_cpu(boot_id)?;
+
+        Ok(())
+    }
+
+    /// Returns a pointer to the `PerCpu` for the given CPU.
+    fn ptr_for_cpu(cpu_id: usize) -> *const Cpu<H> {
+        let pcpu_addr = PER_CPU_BASE.get().unwrap() + cpu_id * core::mem::size_of::<Cpu<H>>();
+        pcpu_addr as *const Cpu<H>
+    }
+
+    /// Initializes the TP pointer to point to PerCpu data.
+    pub fn setup_this_cpu(boot_id: usize) -> HyperResult<()> {
+        // Load TP with address of pur PerCpu struct.
+        let tp = Self::ptr_for_cpu(boot_id) as usize;
+        unsafe {
+            asm!("msr TPIDR_EL2, {}", in(reg) tp)
+            // Safe since we're the only users of TP.
+            // asm!("mv tp, {rs}", rs = in(reg) tp)
+        };
+        Ok(())
+    }
+
+    pub fn create_vcpu(&mut self, vcpu_id: usize) -> HyperResult<Vcpu> {
+        self.vcpu_queue.lock().push_back(vcpu_id);
+        let vcpu = Vcpu::new(vcpu_id, self.cpu_id);
+        let result = Ok(vcpu);
+        result
     }
 
     pub fn set_context_addr(&mut self, context: *mut ContextFrame) {
@@ -111,9 +156,6 @@ impl Cpu{
         }
         match self.context_addr {
             Some(context_addr) => {
-                if context_addr < 0x1000 {
-                    panic!("illegal context addr {:x}", context_addr);
-                }
                 let context = context_addr as *mut ContextFrame;
                 unsafe {
                     (*context).set_gpr(idx, val);
@@ -168,73 +210,27 @@ impl Cpu{
     pub fn set_elr(&self, val: usize) {
         match self.context_addr {
             Some(context_addr) => {
-                if context_addr < 0x1000 {
-                    panic!("illegal context addr {:x}", context_addr);
-                }
                 let context = context_addr as *mut ContextFrame;
                 unsafe { (*context).set_exception_pc(val) }
             }
             None => {}
         }
     }
-/* 
-    pub fn set_active_vcpu(&mut self, active_vcpu: Option<Vcpu>) {
-        self.active_vcpu = active_vcpu.clone();
-        match active_vcpu {
-            None => {}
-            Some(vcpu) => {
-                vcpu.set_state(VcpuState::VcpuAct);
-            }
-        }
-    }
-
-    pub fn schedule_to(&mut self, next_vcpu: Vcpu) {
-        if let Some(prev_vcpu) = &self.active_vcpu {
-            if prev_vcpu.vm_id() != next_vcpu.vm_id() {
-                // info!(
-                //     "next vm{} vcpu {}, prev vm{} vcpu {}",
-                //     next_vcpu.vm_id(),
-                //     next_vcpu.id(),
-                //     prev_vcpu.vm_id(),
-                //     prev_vcpu.id()
-                // );
-                prev_vcpu.set_state(VcpuState::VcpuPend);
-                prev_vcpu.context_vm_store();
-            }
-        }
-        // NOTE: Must set active first and then restore context!!!
-        //      because context restore while inject pending interrupt for VM
-        //      and will judge if current active vcpu
-        self.set_active_vcpu(Some(next_vcpu.clone()));
-        next_vcpu.context_vm_restore();
-        // restore vm's Stage2 MMU context
-        let vttbr = (next_vcpu.vm_id() << 48) | next_vcpu.vm_pt_dir();
-        // info!("vttbr {:#x}", vttbr);
-        // TODO: replace the arch related expr
-        unsafe {
-            core::arch::asm!("msr VTTBR_EL2, {0}", "isb", in(reg) vttbr);
-        }
-    }
-
-    pub fn scheduler(&mut self) -> &mut impl Scheduler {
-        match &mut self.sched {
-            SchedType::None => panic!("scheduler is None"),
-            SchedType::SchedRR(rr) => rr,
-        }
-    }
-*/
-    pub fn assigned(&self) -> bool {
-        self.vcpu_array.vcpu_num() != 0
-    }
 
 }
 
-#[no_mangle]
-#[link_section = ".cpu_private"]
-pub static mut CPU: Cpu = Cpu::default();
-
-pub fn current_cpu() -> &'static mut Cpu {
-    unsafe { &mut CPU }
+ /// Returns current CPU's `PerCpu` structure.
+ pub fn current_cpu() -> &'static mut Cpu<dyn HyperCraftHal> {
+    // Make sure PerCpu has been set up.
+    assert!(PER_CPU_BASE.get().is_some());
+    let tp: u64;
+    unsafe { core::arch::asm!("mrs {}, TPIDR_EL2", out(reg) tp) };
+    let pcpu_ptr = tp as *mut Cpu<dyn HyperCraftHal>;
+    let pcpu = unsafe {
+        // Safe since TP is set uo to point to a valid PerCpu
+        pcpu_ptr.as_mut().unwrap()
+    };
+    pcpu
 }
 
 pub fn active_vcpu_id() -> usize {
@@ -247,7 +243,7 @@ pub fn active_vm_id() -> usize {
     vm.id()
 }
 
-pub fn active_vm() -> Option<Vm> {
+pub fn active_vm() -> Option<Vm<dyn PagingIf>> {
     match current_cpu().active_vcpu.clone() {
         None => {
             return None;
@@ -259,59 +255,11 @@ pub fn active_vm() -> Option<Vm> {
 }
 
 pub fn active_vm_ncpu() -> usize {
+    /* 
     match active_vm() {
         Some(vm) => vm.ncpu(),
         None => 0,
     }
+    */
+    0   // only one cpu
 }
-
-pub fn cpu_init() {
-    let cpu_id = current_cpu().cpu_id;
-    if cpu_id == 0 {
-        Platform::power_on_secondary_cores();
-        power_arch_init();
-        cpu_interface_init();
-    }
-
-    let state = CpuState::CpuIdle;
-    current_cpu().cpu_state = state;
-    let sp = current_cpu().stack.as_ptr() as usize + CPU_STACK_SIZE;
-    let size = core::mem::size_of::<ContextFrame>();
-    current_cpu().set_context_addr((sp - size) as *mut _);
-    info!("Core {} init ok", cpu_id);
-
-    // todo() set barrier for cpu init
-    // crate::lib::barrier();
-    // info!("after barrier cpu init");
-
-    if cpu_id == 0 {
-        info!("Bring up {} cores", PLAT_DESC.cpu_desc.num);
-        info!("Cpu init ok");
-    }
-}
-
-
-pub fn cpu_idle() -> ! {
-    let state = CpuState::CpuIdle;
-    current_cpu().cpu_state = state;
-    cpu_interrupt_unmask();
-    loop {
-        // TODO: replace it with an Arch function `arch_idle`
-        cortex_a::asm::wfi();
-    }
-}
-
-pub static mut CPU_LIST: [Cpu; PLATFORM_CPU_NUM_MAX] = [const { Cpu::default() }; PLATFORM_CPU_NUM_MAX];
-
-/* 
-#[no_mangle]
-#[link_section = ".text.boot"]
-pub extern "C" fn cpu_map_self(cpu_id: usize) -> usize {
-    let mut cpu = unsafe { &mut CPU_LIST[cpu_id] };
-    (*cpu).cpu_id = cpu_id;
-
-    let lvl1_addr = pt_map_banked_cpu(cpu);
-
-    lvl1_addr
-}
-*/

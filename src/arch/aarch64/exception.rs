@@ -17,7 +17,7 @@ use crate::arch::{ContextFrame, current_cpu};
 use crate::arch::cpu::active_vm_id;
 use crate::arch::interrupt::interrupt_handler;
 use crate::arch::gic::{gicc_clear_current_irq, gicc_get_current_irq};
-use crate::arch::sync::{data_abort_handler, hvc_handler, smc_handler};
+use crate::arch::sync::{data_abort_handler, hvc_handler};
 use crate::traits::ContextFrameTrait;
 
 //global_asm!(include_str!("exception.S"));
@@ -172,9 +172,6 @@ extern "C" fn lower_aarch64_synchronous(ctx: *mut ContextFrame) {
         0x24 => {
             // info!("Core[{}] data_abort_handler", cpu_id());
             data_abort_handler();
-        }
-        0x17 => {
-            smc_handler();
         }
         0x16 => {
             hvc_handler();
