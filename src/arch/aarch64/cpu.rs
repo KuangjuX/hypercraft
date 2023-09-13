@@ -1,7 +1,10 @@
 use alloc::{vec::Vec, collections::VecDeque};
+use core::arch::asm;
+
 use page_table::PagingIf;
 use spin::{Mutex, Once};
-use core::arch::asm;
+
+use percpu_macros::def_percpu;
 
 use crate::{HyperCraftHal, HyperResult, HyperError, HostPhysAddr};
 use crate::arch::ipi::{IpiMessage, IPI_HANDLER_LIST};
@@ -61,54 +64,54 @@ fn cpu_interface_init() {
 
 #[repr(C)]
 #[repr(align(4096))]
-pub struct Cpu<H: HyperCraftHal>{
+pub struct Cpu{
     pub cpu_id: usize,
     pub cpu_state: CpuState,
     pub context_addr: Option<usize>,
+
+    pub stack: [u8; CPU_STACK_SIZE],
 
     pub active_vcpu: Option<Vcpu>,
     pub vcpu_queue: Mutex<VecDeque<usize>>,
 
     pub current_irq: usize,
-    marker: core::marker::PhantomData<H>,
-    // pub sched: SchedType, todo
-    // pub cpu_pt: CpuPt,
 }
+
 /// The base address of the per-CPU memory region.
 static PER_CPU_BASE: Once<HostPhysAddr> = Once::new();
 
-impl <H: HyperCraftHal> Cpu<H> {
+impl Cpu {
     const fn new(cpu_id: usize) -> Self {
         Cpu {
             cpu_id: cpu_id,
             cpu_state: CpuState::CpuInactive,
             context_addr: None,
+            stack: [0; CPU_STACK_SIZE],
             active_vcpu: None,
             vcpu_queue: Mutex::new(VecDeque::new()),
-            marker: core::marker::PhantomData,
             current_irq: 0,
         }
     }
 
-    pub fn init(boot_id: usize, stack_size: usize) -> HyperResult<()> {
+    pub fn init(boot_id: usize, stack_size: usize, hypercrafthal: &dyn HyperCraftHal) -> HyperResult<()> {
         let cpu_nums: usize = 1;
-        let pcpu_size = core::mem::size_of::<Cpu<H>>() * cpu_nums;
+        let pcpu_size = core::mem::size_of::<Cpu>() * cpu_nums;
         debug!("pcpu_size: {:#x}", pcpu_size);
-        let pcpu_pages = H::alloc_pages((pcpu_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
+        let pcpu_pages = hypercrafthal.alloc_pages((pcpu_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
             .ok_or(HyperError::NoMemory)?;
         debug!("pcpu_pages: {:#x}", pcpu_pages);
         PER_CPU_BASE.call_once(|| pcpu_pages);
         for cpu_id in 0..cpu_nums {
             if cpu_id != boot_id {
-                H::alloc_pages((stack_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
+                hypercrafthal.alloc_pages((stack_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
                     .ok_or(HyperError::NoMemory)?
             }
-            let pcpu: Cpu<H> = Self::new(cpu_id);
+            let pcpu: Cpu = Self::new(cpu_id);
             let ptr = Self::ptr_for_cpu(cpu_id);
             // Safety: ptr is guaranteed to be properly aligned and point to valid memory owned by
             // PerCpu. No other CPUs are alive at this point, so it cannot be concurrently modified
             // either.
-            unsafe { core::ptr::write(ptr as *mut Cpu<H>, pcpu) };
+            unsafe { core::ptr::write(ptr as *mut Cpu, pcpu) };
         }
 
         // Initialize TP register and set this CPU online to be consistent with secondary CPUs.
@@ -118,9 +121,9 @@ impl <H: HyperCraftHal> Cpu<H> {
     }
 
     /// Returns a pointer to the `PerCpu` for the given CPU.
-    fn ptr_for_cpu(cpu_id: usize) -> *const Cpu<H> {
-        let pcpu_addr = PER_CPU_BASE.get().unwrap() + cpu_id * core::mem::size_of::<Cpu<H>>();
-        pcpu_addr as *const Cpu<H>
+    fn ptr_for_cpu(cpu_id: usize) -> *const Cpu {
+        let pcpu_addr = PER_CPU_BASE.get().unwrap() + cpu_id * core::mem::size_of::<Cpu>();
+        pcpu_addr as *const Cpu
     }
 
     /// Initializes the TP pointer to point to PerCpu data.
@@ -219,8 +222,8 @@ impl <H: HyperCraftHal> Cpu<H> {
 
 }
 
- /// Returns current CPU's `PerCpu` structure.
- pub fn current_cpu() -> &'static mut Cpu<dyn HyperCraftHal> {
+
+pub fn current_cpu() -> &'static mut Cpu {
     // Make sure PerCpu has been set up.
     assert!(PER_CPU_BASE.get().is_some());
     let tp: u64;
@@ -233,6 +236,34 @@ impl <H: HyperCraftHal> Cpu<H> {
     pcpu
 }
 
+/* 
+#[def_percpu]
+pub static mut CPU: Cpu = Cpu::new(0);  // hard code for one cpu
+
+pub fn current_cpu() -> &'static mut Cpu {
+    unsafe {
+        let ptr: *const Cpu = CPU.current_ptr();
+        mem::transmute::<*const Cpu, &'static mut Cpu>(ptr)
+    }
+}
+
+pub fn init_cpu() {
+    cpu_interface_init();
+
+    let current_cpu = current_cpu();
+    let state = CpuState::CpuIdle;
+    let sp = current_cpu().stack.as_ptr() as usize + CPU_STACK_SIZE;
+    let size = core::mem::size_of::<ContextFrame>();
+    let context_addr = (sp - size) as *mut _;
+    CPU.with_current(|c| {
+        c.cpu_state = state;
+        c.context_addr = context_addr;
+    });
+
+    info!("Core {} init ok", current_cpu.cpu_id);
+}
+*/
+
 pub fn active_vcpu_id() -> usize {
     let active_vcpu = current_cpu().active_vcpu.clone().unwrap();
     active_vcpu.id()
@@ -243,7 +274,7 @@ pub fn active_vm_id() -> usize {
     vm.id()
 }
 
-pub fn active_vm() -> Option<Vm<dyn PagingIf>> {
+pub fn active_vm() -> Option<Vm> {
     match current_cpu().active_vcpu.clone() {
         None => {
             return None;

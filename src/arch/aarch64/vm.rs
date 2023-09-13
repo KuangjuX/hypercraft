@@ -13,19 +13,15 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::mem::size_of;
 use spin::Mutex;
-use lazy_static::lazy_static;
-use alloc::boxed::Box;
 
+use crate::GuestPageTableTrait;
 use crate::arch::vgic::Vgic;
 use crate::arch::vcpu::Vcpu;
 use crate::arch::utils::*;
 use crate::arch::emu::EmuDevs;
 use crate::arch::vmConfig::VmConfigEntry;
 use crate::arch::memcpy_safe;
-use crate::memory::PAGE_SIZE_4K;
-use crate::arch::ept::A64HVPageTable;
 
-use page_table::PagingIf;
 use page_table_entry::MappingFlags;
 
 pub const DIRTY_MEM_THRESHOLD: usize = 0x2000;
@@ -169,18 +165,18 @@ impl VmPa {
 
 // #[repr(align(4096))]
 #[derive(Clone)]
-pub struct Vm<I: PagingIf> {
-    pub inner: Arc<Mutex<VmInner<I>>>,
+pub struct Vm {
+    pub inner: Arc<Mutex<VmInner>>
 }
 
-impl <I: PagingIf> Vm<I> {
-    pub fn inner(&self) -> Arc<Mutex<VmInner<I>>> where I:PagingIf {
+impl Vm {
+    pub fn inner(&self) -> Arc<Mutex<VmInner>> {
         self.inner.clone()
     }
 
-    pub fn new(id: usize, page_table: A64HVPageTable<I>) -> Self  {
-        Vm {
-            inner: Arc::new(Mutex::new(VmInner::new(id, page_table))),
+    pub fn new(id: usize) -> Self  {
+        Self {
+            inner: Arc::new(Mutex::new(VmInner::new(id))),
         }
     }
 
@@ -317,48 +313,18 @@ impl <I: PagingIf> Vm<I> {
         vm_inner.intc_dev_id
     }
 
-    pub fn pt_map_range(&self, ipa: usize, len: usize, pa: usize, flags: MappingFlags, allow_huge: bool) {
+    pub fn pt_map_range(&self, guest_page_table: &dyn GuestPageTableTrait, ipa: usize, len: usize, pa: usize, flags: MappingFlags) {
         let vm_inner = self.inner.lock();
-        match &vm_inner.page_table {
-            // Some(page_table) => page_table.pt_map_range(ipa, len, pa, pte, map_block),
-            Some(page_table) => {
-                page_table.map_region(ipa, pa, len, flags, allow_huge)?;
-            }
-            None => {
-                panic!("Vm::pt_map_range: vm{} page_table is empty", vm_inner.id);
-            }
-        }
+        // Some(page_table) => page_table.pt_map_range(ipa, len, pa, pte, map_block),
+        guest_page_table.map_region(ipa, pa, len, flags)?;
+
     }
 
-    pub fn pt_unmap_range(&self, ipa: usize, len: usize, map_block: bool) {
+    pub fn pt_unmap_range(&self, guest_page_table: &dyn GuestPageTableTrait, ipa: usize, len: usize, map_block: bool) {
         let vm_inner = self.inner.lock();
-        match &vm_inner.page_table {
-            // Some(page_table) => page_table.pt_unmap_range(ipa, len, map_block),
-            Some(page_table) => {
-                page_table.unmap_region(ipa, len)?;
-            }
-            None => {
-                panic!("Vm::pt_umnmap_range: vm{} page_table is empty", vm_inner.id);
-            }
-        }
-    }
-
-    /* 
-    /// Modify to set page_table when new a VM (in fn new(id: usize, page_table: A64HVPageTable<I>) -> Self)
-    pub fn set_pt(&self, pt_dir_frame: PageFrame) {
-        let mut vm_inner = self.inner.lock();
-        vm_inner.page_table = Some(PageTable::new(pt_dir_frame))
-    }
-    */
-
-    pub fn pt_dir(&self) -> usize {
-        let vm_inner = self.inner.lock();
-        match &vm_inner.page_table {
-            Some(page_table) => return page_table.root_paddr(),
-            None => {
-                panic!("Vm::pt_dir: vm{} page_table is empty", vm_inner.id);
-            }
-        }
+    
+        // Some(page_table) => page_table.pt_unmap_range(ipa, len, map_block),
+        guest_page_table.unmap_region(ipa, len)?;
     }
 
     pub fn cpu_num(&self) -> usize {
@@ -603,13 +569,13 @@ impl <I: PagingIf> Vm<I> {
 }
 
 #[repr(align(4096))]
-pub struct VmInner<I: PagingIf> {
+pub struct VmInner {
     pub id: usize,
     pub ready: bool,
     pub config: Option<VmConfigEntry>,
     pub dtb: Option<usize>,
     // memory config
-    pub page_table: Option<A64HVPageTable<I>>,
+    // pub page_table: Option<A64HVPageTable<I>>,
     pub mem_region_num: usize,
     pub pa_region: Vec<VmPa>, // Option<[VmPa; VM_MEM_REGION_MAX]>,
 
@@ -634,14 +600,13 @@ pub struct VmInner<I: PagingIf> {
     pub med_blk_id: Option<usize>,
 }
 
-impl <I:PagingIf> VmInner<I> {
-    pub fn new(id: usize, page_table: A64HVPageTable<I>) -> Self {
+impl  VmInner {
+    pub fn new(id: usize) -> Self {
         VmInner {
             id,
             ready: false,
             config: None,
             dtb: None,
-            page_table: Some(page_table),
             mem_region_num: 0,
             pa_region: Vec::new(),
             entry_point: 0,

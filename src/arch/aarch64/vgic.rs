@@ -12,6 +12,7 @@ use alloc::collections::{BTreeMap, VecDeque};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use alloc::vec;
+use page_table::PagingIf;
 use spin::Mutex;
 
 use arm_gic::{
@@ -20,16 +21,15 @@ use arm_gic::{
     GICD_TYPER_CPUNUM_OFF, GICD_TYPER_CPUNUM_MSK
 };
 
-use crate::arch::{GICH, GICD, active_vm, current_cpu, active_vcpu_id, active_vm_id};
+use crate::arch::{GICH, GICD, GICD_BASE, active_vm, current_cpu, active_vcpu_id, active_vm_id};
 use crate::arch::ipi::{
     IpiInitcMessage, InitcEvent, ipi_intra_broadcast_msg, IpiType, IpiInnerMsg,
     ipi_send_msg, IpiMessage
 };
-use crate::arch::{PlatOperation, Platform};
 use crate::arch::emu::{EmuContext, EmuDevs};
 use crate::arch::cpu::active_vm_ncpu;
 use crate::arch::vcpu::{restore_vcpu_gic, save_vcpu_gic, Vcpu};
-use crate::arch::vm::{vm, Vm};
+use crate::arch::vm::Vm;
 use crate::arch::gic::{IrqState, gic_lrs};
 use crate::arch::utils::{bit_extract, bit_set, bit_get, bitmap_find_nth, ptr_read_write};
 
@@ -79,8 +79,7 @@ impl VgicInt {
             match &inner.owner {
                 None => None,
                 Some(vcpu) => {
-                    let vm_id = vcpu.vm_id();
-                    let vm = vm(vm_id).unwrap();
+                    let vm = vcpu.vm().unwrap();
                     vm.vcpu(vcpu.id())
                 }
             }
@@ -334,7 +333,7 @@ impl VgicIntInner {
         }
     }
 
-    fn owner_vm(&self) -> Vm {
+    fn owner_vm(&self) -> Vm{
         let owner = self.owner.as_ref().unwrap();
         owner.vm().unwrap()
     }
@@ -436,8 +435,7 @@ impl Vgic {
                         match interrupt.owner() {
                             None => {}
                             Some(vcpu) => {
-                                let vm_id = vcpu.vm_id();
-                                let vm = vm(vm_id).unwrap();
+                                let vm = vcpu.vm().unwrap();
                                 let int_id = interrupt.id() as usize;
                                 let phys_id = vcpu.phys_id();
                                 interrupts.push(VgicInt::private_new(
@@ -1622,7 +1620,7 @@ impl Vgic {
             }
         };
 
-        if bit_extract(emu_ctx.address, 0, 12) == bit_extract(Platform::GICD_BASE + 0x0f00, 0, 12) {
+        if bit_extract(emu_ctx.address, 0, 12) == bit_extract(GICD_BASE + 0x0f00, 0, 12) {
             if emu_ctx.write {
                 let sgir_trglstflt = bit_extract(val, 24, 2);
                 let mut trgtlist = 0;
@@ -2214,6 +2212,7 @@ pub fn vgicd_emu_access_is_vaild(emu_ctx: &EmuContext) -> bool {
     true
 }
 
+
 pub fn partial_passthrough_intc_handler(_emu_dev_id: usize, emu_ctx: &EmuContext) -> bool {
     if !vgicd_emu_access_is_vaild(emu_ctx) {
         return false;
@@ -2223,9 +2222,9 @@ pub fn partial_passthrough_intc_handler(_emu_dev_id: usize, emu_ctx: &EmuContext
     if emu_ctx.write {
         // todo: add offset match
         let val = current_cpu().get_gpr(emu_ctx.reg);
-        ptr_read_write(Platform::GICD_BASE + 0x8_0000_0000 + offset, emu_ctx.width, val, false);
+        ptr_read_write(GICD_BASE + 0x8_0000_0000 + offset, emu_ctx.width, val, false);
     } else {
-        let res = ptr_read_write(Platform::GICD_BASE + 0x8_0000_0000 + offset, emu_ctx.width, 0, true);
+        let res = ptr_read_write(GICD_BASE + 0x8_0000_0000 + offset, emu_ctx.width, 0, true);
         current_cpu().set_gpr(emu_ctx.reg, res);
     }
 

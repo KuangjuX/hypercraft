@@ -35,7 +35,7 @@ pub fn interrupt_init() {
 }
 
 
-pub fn interrupt_vm_inject(vm: Vm<dyn HyperCraftHal>, vcpu: Vcpu, int_id: usize) {
+pub fn interrupt_vm_inject(vm: Vm, vcpu: Vcpu, int_id: usize) {
     if vcpu.phys_id() != current_cpu().cpu_id {
         info!(
             "interrupt_vm_inject: Core {} failed to find target (VCPU {} VM {})",
@@ -56,11 +56,11 @@ pub fn interrupt_vm_inject(vm: Vm<dyn HyperCraftHal>, vcpu: Vcpu, int_id: usize)
     vcpu.push_int(int_id);
 }
 
-pub fn interrupt_arch_vm_register(vm: Vm<dyn HyperCraftHal>, id: usize) {
+pub fn interrupt_arch_vm_register(vm: impl HyperCraftHal, id: usize) {
     vgic_set_hw_int(vm, id);
 }
 
-pub fn interrupt_vm_register(vm: Vm<dyn HyperCraftHal>, id: usize) -> bool {
+pub fn interrupt_vm_register(vm: impl HyperCraftHal, id: usize) -> bool {
 
     let mut glb_bitmap_lock = INTERRUPT_GLB_BITMAP.lock();
     if glb_bitmap_lock.get(id) != 0 && id >= GIC_PRIVATE_INT_NUM {
@@ -74,7 +74,7 @@ pub fn interrupt_vm_register(vm: Vm<dyn HyperCraftHal>, id: usize) -> bool {
     true
 }
 
-pub fn interrupt_vm_remove(_vm: Vm<dyn HyperCraftHal>, id: usize) {
+pub fn interrupt_vm_remove(_vm: Vm, id: usize) {
     let mut glb_bitmap_lock = INTERRUPT_GLB_BITMAP.lock();
     // vgic and vm will be removed with struct vm
     glb_bitmap_lock.clear(id);

@@ -46,14 +46,16 @@ impl Vcpu {
         }
     }
 
-    pub fn init(&self, vm: Vm<dyn PagingIf>) {
+    /* 
+    pub fn init(&self, vm: Vm) {
         let mut inner = self.inner.lock();
         inner.vm = Some(vm.clone());
         drop(inner);
         vcpu_arch_init(vm, self.clone());
         self.reset_context();
     }
-
+    */
+    
     pub fn context_vm_store(&self) {
         self.save_cpu_ctx();
 
@@ -150,7 +152,7 @@ impl Vcpu {
         inner.id
     }
 
-    pub fn vm(&self) -> Option<Vm<dyn PagingIf>> {
+    pub fn vm(&self) -> Option<Vm> {
         let inner = self.inner.lock();
         inner.vm.clone()
     }
@@ -162,10 +164,6 @@ impl Vcpu {
 
     pub fn vm_id(&self) -> usize {
         self.vm().unwrap().id()
-    }
-
-    pub fn vm_pt_dir(&self) -> usize {
-        self.vm().unwrap().pt_dir()
     }
 
     pub fn reset_context(&self) {
@@ -231,7 +229,7 @@ pub struct VcpuInner {
     pub id: usize,
     pub phys_id: usize,
     pub state: VcpuState,
-    pub vm: Option<Vm<dyn PagingIf>>,
+    pub vm: Option<Vm>,
     pub int_list: Vec<usize>,
     pub vcpu_ctx: ContextFrame,
     pub vm_ctx: VmContext,
@@ -358,7 +356,8 @@ pub fn save_vcpu_gic(cur_vcpu: Option<Vcpu>, trgt_vcpu: Vcpu) {
     }
 }
 
-pub fn vcpu_arch_init(vm: Vm<dyn PagingIf>, vcpu: Vcpu) {
+/* 
+pub fn vcpu_arch_init(vm: Vm, vcpu: Vcpu) {
     let config = vm.config();
     let mut vcpu_inner = vcpu.inner.lock();
     vcpu_inner.vcpu_ctx.set_argument(config.device_tree_load_ipa());
@@ -367,6 +366,7 @@ pub fn vcpu_arch_init(vm: Vm<dyn PagingIf>, vcpu: Vcpu) {
         (SPSR_EL1::M::EL1h + SPSR_EL1::I::Masked + SPSR_EL1::F::Masked + SPSR_EL1::A::Masked + SPSR_EL1::D::Masked)
             .value;
 }
+*/
 
 pub fn vcpu_alloc() -> Option<Vcpu> {
     let mut vcpu_list = VCPU_LIST.lock();

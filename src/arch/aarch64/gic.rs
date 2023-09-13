@@ -11,6 +11,12 @@ pub static GICD: Option<&SpinNoIrq<GicDistributor>> = None;
 pub static GICC: Option<&GicCpuInterface> = None;
 pub static GICH: Option<&GicHypervisorInterface> = None;
 
+pub const GICD_BASE: usize = 0x08000000;
+pub const GICC_BASE: usize = 0x08010000;
+pub const GICH_BASE: usize = 0x08030000;
+pub const GICV_BASE: usize = 0x08040000;
+
+
 // GICC BITS
 pub const GICC_CTLR_EN_BIT: usize = 0x1;
 pub const GICC_CTLR_EOIMODENS_BIT: usize = 1 << 9;
