@@ -22,7 +22,7 @@ use tock_registers::interfaces::*;
 use crate::arch::{ContextFrame, memcpy_safe, current_cpu, active_vm_id, active_vcpu_id};
 use crate::arch::contextFrame::VmContext;
 use crate::traits::ContextFrameTrait;
-use crate::arch::vm::{Vm, VmState, vm_interface_set_state};
+use crate::arch::vm::Vm;
 use crate::arch::gic::{GICD, GICC, GICH};
 use crate::arch::interrupt::{interrupt_vm_inject, cpu_interrupt_unmask};
 use crate::arch::cpu::CpuState;
@@ -55,7 +55,7 @@ impl Vcpu {
         self.reset_context();
     }
     */
-    
+
     pub fn context_vm_store(&self) {
         self.save_cpu_ctx();
 
@@ -399,6 +399,7 @@ pub fn vcpu_idle(_vcpu: Vcpu) -> ! {
 }
 
 // WARNING: No Auto `drop` in this function
+/* 
 pub fn vcpu_run(announce: bool) -> ! {
     {
         let vcpu = current_cpu().active_vcpu.clone().unwrap();
@@ -416,3 +417,4 @@ pub fn vcpu_run(announce: bool) -> ! {
         context_vm_entry(current_cpu().context_addr.unwrap());
     }
 }
+*/

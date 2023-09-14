@@ -47,7 +47,6 @@ fn hvc_sys_handler(event: usize, x0: usize, x1: usize) -> Result<usize, ()> {
 fn init_hv(x0: usize, x1: usize) {
     // cptr_el2: Controls trapping to EL2 for accesses to the CPACR, Trace functionality 
     //           and registers associated with floating-point and Advanced SIMD execution.
-
     // hcr_el2 set to 0x80000019 (do not trap smc?)
     // hcr_el2[31]: Register width control for lower Exception levels. 
     //             1 value: EL1 is AArch64. EL0 is determined by the register width 
@@ -107,4 +106,39 @@ unsafe fn init_hv_mmu(root_paddr: usize) {
     // barrier::isb(barrier::SY);
 
     TTBR0_EL2.set(root_paddr as *const _ as u64);
+}
+
+#[inline(never)]
+fn hvc_call(
+    x0: usize, 
+    x1: usize, 
+    x2: usize, 
+    x3: usize, 
+    x4: usize,
+    x5: usize,
+    x6: usize,
+    x7: usize,
+) -> usize {
+    #[cfg(target_arch = "aarch64")]
+    unsafe {
+        let r0;
+        core::arch::asm!(
+            "hvc #0",
+            inout("x0") x0 => r0,
+            inout("x1") x1 => _,
+            inout("x2") x2 => _,
+            inout("x3") x3 => _,
+            inout("x4") x4 => _,
+            inout("x5") x5 => _,
+            inout("x6") x6 => _,
+            inout("x7") x7 => _,
+            options(nomem, nostack)
+        );
+        r0
+    }
+}
+
+pub fn init_hv_by_trap2el2(root_paddr: usize, exception_base: usize) -> usize {
+    // mode is in x7. hvc_type: HVC_SYS; event: HVC_SYS_SET_EL2
+    hvc_call(root_paddr, exception_base, 0, 0, 0, 0, 0, 0)
 }

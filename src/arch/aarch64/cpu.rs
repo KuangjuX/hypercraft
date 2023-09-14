@@ -69,8 +69,6 @@ pub struct Cpu{
     pub cpu_state: CpuState,
     pub context_addr: Option<usize>,
 
-    pub stack: [u8; CPU_STACK_SIZE],
-
     pub active_vcpu: Option<Vcpu>,
     pub vcpu_queue: Mutex<VecDeque<usize>>,
 
@@ -86,7 +84,6 @@ impl Cpu {
             cpu_id: cpu_id,
             cpu_state: CpuState::CpuInactive,
             context_addr: None,
-            stack: [0; CPU_STACK_SIZE],
             active_vcpu: None,
             vcpu_queue: Mutex::new(VecDeque::new()),
             current_irq: 0,

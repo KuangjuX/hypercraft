@@ -43,6 +43,8 @@ pub use arch::{
     init_hv_runtime, GprIndex, HyperCallMsg, NestedPageTable, PerCpu, VCpu, VmExitInfo, VM,
 };
 
+// #[cfg(target_arch = "aarch64")]
+pub use arch::init_hv_by_trap2el2;
 
 pub use hal::HyperCraftHal;
 pub use memory::{

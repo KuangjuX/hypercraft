@@ -19,13 +19,13 @@ use crate::arch::vgic::Vgic;
 use crate::arch::vcpu::Vcpu;
 use crate::arch::utils::*;
 use crate::arch::emu::EmuDevs;
-use crate::arch::vmConfig::VmConfigEntry;
 use crate::arch::memcpy_safe;
 
 use page_table_entry::MappingFlags;
 
-pub const DIRTY_MEM_THRESHOLD: usize = 0x2000;
+/* 
 pub const VM_NUM_MAX: usize = 8;
+
 pub static VM_INTERFACE_LIST: [Mutex<VmInterface>; VM_NUM_MAX] = [const { Mutex::new(VmInterface::default()) }; VM_NUM_MAX];
 
 pub fn vm_interface_reset(vm_id: usize) {
@@ -145,6 +145,7 @@ impl VmInterface {
         // self.mem_map = None;
     }
 }
+*/
 
 #[derive(Clone, Copy)]
 pub struct VmPa {
@@ -174,9 +175,9 @@ impl Vm {
         self.inner.clone()
     }
 
-    pub fn new(id: usize) -> Self  {
+    pub fn new(id: usize, vcpu_list: Vec<Vcpu>) -> Self  {
         Self {
-            inner: Arc::new(Mutex::new(VmInner::new(id))),
+            inner: Arc::new(Mutex::new(VmInner::new(id, vcpu_list))),
         }
     }
 
@@ -201,11 +202,12 @@ impl Vm {
         }
     }
 
+    /* 
     pub fn set_iommu_ctx_id(&self, id: usize) {
         let mut vm_inner = self.inner.lock();
         vm_inner.iommu_ctx_id = Some(id);
     }
-
+    */
     pub fn iommu_ctx_id(&self) -> usize {
         let vm_inner = self.inner.lock();
         match vm_inner.iommu_ctx_id {
@@ -303,16 +305,19 @@ impl Vm {
         vm_inner.int_bitmap.as_mut().unwrap().set(int_id);
     }
 
+    /* 
     pub fn set_config_entry(&self, config: Option<VmConfigEntry>) {
         let mut vm_inner = self.inner.lock();
         vm_inner.config = config;
     }
-
+    */
+    
     pub fn intc_dev_id(&self) -> usize {
         let vm_inner = self.inner.lock();
         vm_inner.intc_dev_id
     }
 
+    /* 
     pub fn pt_map_range(&self, guest_page_table: &dyn GuestPageTableTrait, ipa: usize, len: usize, pa: usize, flags: MappingFlags) {
         let vm_inner = self.inner.lock();
         // Some(page_table) => page_table.pt_map_range(ipa, len, pa, pte, map_block),
@@ -326,6 +331,7 @@ impl Vm {
         // Some(page_table) => page_table.pt_unmap_range(ipa, len, map_block),
         guest_page_table.unmap_region(ipa, len)?;
     }
+    */
 
     pub fn cpu_num(&self) -> usize {
         let vm_inner = self.inner.lock();
@@ -336,7 +342,7 @@ impl Vm {
         let vm_inner = self.inner.lock();
         vm_inner.id
     }
-
+    /*
     pub fn config(&self) -> VmConfigEntry {
         let vm_inner = self.inner.lock();
         match &vm_inner.config {
@@ -381,7 +387,8 @@ impl Vm {
         let vm_inner = self.inner.lock();
         vm_inner.mem_region_num
     }
-
+    */
+    
     pub fn vgic(&self) -> Arc<Vgic> {
         let vm_inner = self.inner.lock();
         match &vm_inner.emu_devs[vm_inner.intc_dev_id] {
@@ -410,6 +417,7 @@ impl Vm {
         vm_inner.emu_devs[dev_id].clone()
     }
 
+    /* 
     pub fn emu_net_dev(&self, id: usize) -> EmuDevs {
         let vm_inner = self.inner.lock();
         let mut dev_num = 0;
@@ -450,6 +458,7 @@ impl Vm {
         }
         return EmuDevs::None;
     }
+    */
 
     pub fn ncpu(&self) -> usize {
         let vm_inner = self.inner.lock();
@@ -513,6 +522,7 @@ impl Vm {
         return pmask;
     }
 
+    /* 
     pub fn show_pagetable(&self, ipa: usize) {
         let vm_inner = self.inner.lock();
         // vm_inner.page_table.as_ref().unwrap().show_pt(ipa);
@@ -566,18 +576,19 @@ impl Vm {
         info!("vm_ipa2pa: VM {} access invalid ipa {:x}", self.id(), ipa);
         return 0;
     }
+    */
 }
 
 #[repr(align(4096))]
 pub struct VmInner {
     pub id: usize,
-    pub ready: bool,
-    pub config: Option<VmConfigEntry>,
-    pub dtb: Option<usize>,
+    // pub ready: bool,
+    // pub config: Option<VmConfigEntry>,
+    // pub dtb: Option<usize>,
     // memory config
     // pub page_table: Option<A64HVPageTable<I>>,
-    pub mem_region_num: usize,
-    pub pa_region: Vec<VmPa>, // Option<[VmPa; VM_MEM_REGION_MAX]>,
+    // pub mem_region_num: usize,
+    // pub pa_region: Vec<VmPa>, // Option<[VmPa; VM_MEM_REGION_MAX]>,
 
     // image config
     pub entry_point: usize,
@@ -593,34 +604,34 @@ pub struct VmInner {
     pub int_bitmap: Option<BitMap<BitAlloc256>>,
 
     // iommu
-    pub iommu_ctx_id: Option<usize>,
+    // pub iommu_ctx_id: Option<usize>,
 
     // emul devs
     pub emu_devs: Vec<EmuDevs>,
-    pub med_blk_id: Option<usize>,
+    // pub med_blk_id: Option<usize>,
 }
 
 impl  VmInner {
-    pub fn new(id: usize) -> Self {
+    pub fn new(id: usize, vcpu_list: Vec<Vcpu>) -> Self {
         VmInner {
             id,
-            ready: false,
-            config: None,
-            dtb: None,
-            mem_region_num: 0,
-            pa_region: Vec::new(),
+            // ready: false,
+            // config: None,
+            // dtb: None,
+            // mem_region_num: 0,
+            // pa_region: Vec::new(),
             entry_point: 0,
 
             has_master: false,
-            vcpu_list: Vec::new(),
+            vcpu_list: vcpu_list,
             cpu_num: 0,
             ncpu: 0,
 
             intc_dev_id: 0,
             int_bitmap: Some(BitAlloc4K::default()),
-            iommu_ctx_id: None,
+            // iommu_ctx_id: None,
             emu_devs: Vec::new(),
-            med_blk_id: None,
+            // med_blk_id: None,
         }
     }
 }

@@ -12,7 +12,7 @@ mod vcpu;
 // mod vcpu_array;
 mod vgic;
 mod vm;
-mod vmConfig;
+// mod vmConfig;
 mod vmPages;
 mod manageVm;
 mod gic;
@@ -25,6 +25,8 @@ pub use vgic::maintenance_irq_handler;
 pub use timer::timer_irq_handler;
 pub use interrupt::{interrupt_handler, interrupt_init};
 pub use gic::{GICC, GICD, GICH, interrupt_arch_enable, GICD_BASE};
+pub use hvc::init_hv_by_trap2el2;
+pub use ept::A64HVPageTable;
 
 // pub use config::*;
 
