@@ -5,7 +5,7 @@ use core::fmt::Formatter;
 use cortex_a::registers::*;
 
 use crate::{msr, mrs};
-use crate::arch::gic::{GicState, GicIrqState};
+use crate::arch::gic::GicState;
 
 global_asm!(include_str!("fpsimd.S"));
 

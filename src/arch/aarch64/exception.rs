@@ -13,10 +13,7 @@ use core::arch::global_asm;
 use tock_registers::interfaces::*;
 
 use crate::mrs;
-use crate::arch::{ContextFrame, current_cpu};
-use crate::arch::cpu::active_vm_id;
-use crate::arch::interrupt::interrupt_handler;
-use crate::arch::gic::{gicc_clear_current_irq, gicc_get_current_irq};
+use crate::arch::ContextFrame;
 use crate::arch::sync::{data_abort_handler, hvc_handler};
 use crate::traits::ContextFrameTrait;
 
@@ -166,39 +163,23 @@ pub fn exception_data_abort_access_is_sign_ext() -> bool {
 
 #[no_mangle]
 extern "C" fn lower_aarch64_synchronous(ctx: *mut ContextFrame) {
-    // info!("lower_aarch64_synchronous");
-    current_cpu().set_context_addr(ctx);
+    info!("lower_aarch64_synchronous");
+    // current_cpu().set_context_addr(ctx);
     match exception_class() {
         0x24 => {
             // info!("Core[{}] data_abort_handler", cpu_id());
-            data_abort_handler();
+            data_abort_handler(ctx);
         }
         0x16 => {
-            hvc_handler();
+            hvc_handler(ctx);
         }
         _ => unsafe {
             panic!(
-                "core {} vm {}: handler not presents for EC_{} @ipa 0x{:x}, @pc 0x{:x}",
-                current_cpu().cpu_id,
-                active_vm_id(),
+                "handler not presents for EC_{} @ipa 0x{:x}, @pc 0x{:x}",
                 exception_class(),
                 exception_fault_addr(),
                 (*ctx).exception_pc()
             );
         },
     }
-    current_cpu().clear_context_addr();
-}
-
-#[no_mangle]
-extern "C" fn lower_aarch64_irq(ctx: *mut ContextFrame) {
-    current_cpu().set_context_addr(ctx);
-    let (id, src) = gicc_get_current_irq();
-
-    if id >= 1022 {
-        return;
-    }
-    let handled_by_hypervisor = interrupt_handler(id);
-    gicc_clear_current_irq(handled_by_hypervisor);
-    current_cpu().clear_context_addr();
 }

@@ -18,13 +18,11 @@ use spin::Mutex;
 use cortex_a::registers::*;
 use tock_registers::interfaces::*;
  
-
-use crate::arch::{ContextFrame, memcpy_safe, current_cpu, active_vm_id, active_vcpu_id};
+use crate::arch::{ContextFrame, memcpy_safe};
 use crate::arch::contextFrame::VmContext;
 use crate::traits::ContextFrameTrait;
 use crate::arch::vm::Vm;
 use crate::arch::gic::{GICD, GICC, GICH};
-use crate::arch::interrupt::{interrupt_vm_inject, cpu_interrupt_unmask};
 use crate::arch::cpu::CpuState;
 
 #[derive(Clone, Copy, Debug)]
@@ -46,88 +44,7 @@ impl Vcpu {
         }
     }
 
-    /* 
-    pub fn init(&self, vm: Vm) {
-        let mut inner = self.inner.lock();
-        inner.vm = Some(vm.clone());
-        drop(inner);
-        vcpu_arch_init(vm, self.clone());
-        self.reset_context();
-    }
-    */
-
-    pub fn context_vm_store(&self) {
-        self.save_cpu_ctx();
-
-        let mut inner = self.inner.lock();
-        inner.vm_ctx.ext_regs_store();
-        inner.vm_ctx.fpsimd_save_context();
-        inner.vm_ctx.gic_save_state();
-    }
-
-    pub fn context_vm_restore(&self) {
-        // info!("context_vm_restore");
-        self.restore_cpu_ctx();
-
-        let inner = self.inner.lock();
-        // restore vm's VFP and SIMD
-        inner.vm_ctx.fpsimd_restore_context();
-        inner.vm_ctx.gic_restore_state();
-        inner.vm_ctx.ext_regs_restore();
-        drop(inner);
-
-        self.inject_int_inlist();
-    }
-
-    pub fn gic_restore_context(&self) {
-        let inner = self.inner.lock();
-        inner.vm_ctx.gic_restore_state();
-    }
-
-    pub fn gic_save_context(&self) {
-        let mut inner = self.inner.lock();
-        inner.vm_ctx.gic_save_state();
-    }
-
-    pub fn save_cpu_ctx(&self) {
-        let inner = self.inner.lock();
-        match current_cpu().context_addr {
-            None => {
-                info!("save_cpu_ctx: cpu{} ctx is NULL", current_cpu().cpu_id);
-            }
-            Some(ctx) => {
-                memcpy_safe(
-                    &(inner.vcpu_ctx) as *const _ as *const u8,
-                    ctx as *const u8,
-                    size_of::<ContextFrame>(),
-                );
-            }
-        }
-    }
-
-    fn restore_cpu_ctx(&self) {
-        let inner = self.inner.lock();
-        match current_cpu().context_addr {
-            None => {
-                info!("restore_cpu_ctx: cpu{} ctx is NULL", current_cpu().cpu_id);
-            }
-            Some(ctx) => {
-                memcpy_safe(
-                    ctx as *const u8,
-                    &(inner.vcpu_ctx) as *const _ as *const u8,
-                    size_of::<ContextFrame>(),
-                );
-            }
-        }
-    }
-
-    pub fn set_phys_id(&self, phys_id: usize) {
-        let mut inner = self.inner.lock();
-        info!("set vcpu {} phys id {}", inner.id, phys_id);
-        inner.phys_id = phys_id;
-    }
-
-    pub fn set_gich_ctlr(&self, ctlr: u32) {
+    pub fn set_gicc_ctlr(&self, ctlr: u32) {
         let mut inner = self.inner.lock();
         inner.vm_ctx.gic_state.saved_ctlr = ctlr;
     }
@@ -207,22 +124,6 @@ impl Vcpu {
             inner.int_list.push(int);
         }
     }
-
-    fn inject_int_inlist(&self) {
-        match self.vm() {
-            None => {}
-            Some(vm) => {
-                let mut inner = self.inner.lock();
-                let int_list = inner.int_list.clone();
-                inner.int_list.clear();
-                drop(inner);
-                for int in int_list {
-                    // info!("schedule: inject int {} for vm {}", int, vm.id());
-                    interrupt_vm_inject(vm.clone(), self.clone(), int);
-                }
-            }
-        }
-    }
 }
 
 pub struct VcpuInner {
@@ -272,6 +173,7 @@ impl VcpuInner {
         vmpidr |= self.id;
         self.vm_ctx.vmpidr_el2 = vmpidr as u64;
     }
+
     fn reset_vtimer_offset(&mut self) {
         let curpct = cortex_a::registers::CNTPCT_EL0.get() as u64;
         self.vm_ctx.cntvoff_el2 = curpct - self.vm_ctx.cntvct_el0;
@@ -323,7 +225,7 @@ impl VcpuInner {
 }
 
 pub static VCPU_LIST: Mutex<Vec<Vcpu>> = Mutex::new(Vec::new());
-
+/* 
 pub fn restore_vcpu_gic(cur_vcpu: Option<Vcpu>, trgt_vcpu: Vcpu) {
     // println!("restore_vcpu_gic");
     match cur_vcpu {
@@ -356,7 +258,7 @@ pub fn save_vcpu_gic(cur_vcpu: Option<Vcpu>, trgt_vcpu: Vcpu) {
     }
 }
 
-/* 
+
 pub fn vcpu_arch_init(vm: Vm, vcpu: Vcpu) {
     let config = vm.config();
     let mut vcpu_inner = vcpu.inner.lock();
@@ -367,7 +269,7 @@ pub fn vcpu_arch_init(vm: Vm, vcpu: Vcpu) {
             .value;
 }
 */
-
+/* 
 pub fn vcpu_alloc() -> Option<Vcpu> {
     let mut vcpu_list = VCPU_LIST.lock();
     if vcpu_list.len() >= 8 {
@@ -389,17 +291,8 @@ pub fn vcpu_remove(vcpu: Vcpu) {
     panic!("illegal vm{} vcpu{}, not exist in vcpu_list", vcpu.vm_id(), vcpu.id());
 }
 
-pub fn vcpu_idle(_vcpu: Vcpu) -> ! {
-    // cpu_interrupt_unmask();
-    cpu_interrupt_unmask();
-    loop {
-        // TODO: replace it with an Arch function `arch_idle`
-        cortex_a::asm::wfi();
-    }
-}
-
 // WARNING: No Auto `drop` in this function
-/* 
+
 pub fn vcpu_run(announce: bool) -> ! {
     {
         let vcpu = current_cpu().active_vcpu.clone().unwrap();

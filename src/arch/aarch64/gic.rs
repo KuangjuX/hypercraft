@@ -4,7 +4,6 @@ use spinlock::SpinNoIrq;
 use arm_gic::gic_v2::{GicDistributor, GicHypervisorInterface, GicCpuInterface};
 use arm_gic::GIC_LIST_REGS_NUM;
 
-use crate::arch::current_cpu;
 use crate::arch::utils::bit_extract;
 
 pub static GICD: Option<&SpinNoIrq<GicDistributor>> = None;
@@ -90,18 +89,7 @@ impl GicState {
 
 }
 
-#[repr(C)]
-#[repr(align(16))]
-#[derive(Debug, Copy, Clone, Default)]
-pub struct GicIrqState {
-    pub id: u64,
-    pub enable: u8,
-    pub pend: u8,
-    pub active: u8,
-    pub priority: u8,
-    pub target: u8,
-}
-
+/* 
 pub fn gicc_get_current_irq() -> (usize, usize) {
     if let Some(gicc) = GICC {
         let iar = gicc.get_iar();
@@ -159,50 +147,4 @@ pub fn interrupt_arch_clear() {
     gic_cpu_reset();
     gicc_clear_current_irq(true);
 }
-
-pub fn interrupt_arch_enable(int_id: usize, en: bool) {
-    if GICD.is_none() {
-        warn!("No available GICH in interrupt_arch_enable");
-        return;
-    }
-
-    let gicd = GICD.unwrap();
-    let cpu_id = current_cpu().cpu_id;
-    if en {
-        gicd.lock().set_priority(int_id, 0x7f);
-        gicd.lock().set_target_cpu(int_id, 1 << cpu_id);
-
-        gicd.lock().set_enable(int_id, en);
-    } else {
-        gicd.lock().set_enable(int_id, en);
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum IrqState {
-    IrqSInactive,
-    IrqSPend,
-    IrqSActive,
-    IrqSPendActive,
-}
-
-impl IrqState {
-    pub fn num_to_state(num: usize) -> IrqState {
-        match num {
-            0 => IrqState::IrqSInactive,
-            1 => IrqState::IrqSPend,
-            2 => IrqState::IrqSActive,
-            3 => IrqState::IrqSPendActive,
-            _ => panic!("num_to_state: illegal irq state"),
-        }
-    }
-
-    pub fn to_num(&self) -> usize {
-        match self {
-            IrqState::IrqSInactive => 0,
-            IrqState::IrqSPend => 1,
-            IrqState::IrqSActive => 2,
-            IrqState::IrqSPendActive => 3,
-        }
-    }
-}
+*/

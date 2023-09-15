@@ -1,6 +1,6 @@
 
 use aarch64_cpu::{asm, asm::barrier, registers::*};
-
+use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 
 pub const HVC_SYS: usize = 0;
 
@@ -65,7 +65,7 @@ fn init_hv(x0: usize, x1: usize) {
 
         bl {init_hv_mmu}      // x0 contains root_paddr
 
-        ldr x2, =(0x80000019) 
+        ldr x2, =(0x80000001)  // passthrough gic
         msr hcr_el2, x2       // Set hcr_el2 for hypervisor control.
 
         mov x2, 1
@@ -105,7 +105,7 @@ unsafe fn init_hv_mmu(root_paddr: usize) {
     // SCTLR_EL2.modify(SCTLR_EL2::M::Enable + SCTLR_EL2::C::Cacheable + SCTLR_EL2::I::Cacheable);
     // barrier::isb(barrier::SY);
 
-    TTBR0_EL2.set(root_paddr as *const _ as u64);
+    TTBR0_EL2.set(root_paddr as *const usize as u64);
 }
 
 #[inline(never)]
@@ -119,9 +119,9 @@ fn hvc_call(
     x6: usize,
     x7: usize,
 ) -> usize {
+    let r0;
     #[cfg(target_arch = "aarch64")]
     unsafe {
-        let r0;
         core::arch::asm!(
             "hvc #0",
             inout("x0") x0 => r0,
@@ -134,8 +134,8 @@ fn hvc_call(
             inout("x7") x7 => _,
             options(nomem, nostack)
         );
-        r0
     }
+    r0
 }
 
 pub fn init_hv_by_trap2el2(root_paddr: usize, exception_base: usize) -> usize {

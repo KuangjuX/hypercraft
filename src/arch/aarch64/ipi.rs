@@ -1,3 +1,4 @@
+/* 
 use alloc::vec::Vec;
 
 use spin::Mutex;
@@ -173,3 +174,4 @@ pub fn ipi_intra_broadcast_msg(vm: impl HyperCraftHal, ipi_type: IpiType, msg: I
     }
     true
 }
+*/

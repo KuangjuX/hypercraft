@@ -6,11 +6,9 @@ use spin::{Mutex, Once};
 
 use percpu_macros::def_percpu;
 
-use crate::{HyperCraftHal, HyperResult, HyperError, HostPhysAddr};
-use crate::arch::ipi::{IpiMessage, IPI_HANDLER_LIST};
+use crate::{HyperCraftHal, HyperResult, HyperError, HostPhysAddr, HostVirtAddr, GuestPhysAddr};
 use crate::arch::vcpu::Vcpu;
 use crate::arch::vm::Vm;
-use crate::arch::interrupt::cpu_interrupt_unmask;
 use crate::arch::ContextFrame;
 
 use crate::traits::ContextFrameTrait;
@@ -36,79 +34,56 @@ impl PartialEq for CpuState {
     }
 }
 
-pub struct CpuInterface {
-    pub msg_queue: Vec<IpiMessage>,
-}
-
-impl CpuInterface {
-    pub fn default() -> CpuInterface {
-        CpuInterface { msg_queue: Vec::new() }
-    }
-
-    pub fn push(&mut self, ipi_msg: IpiMessage) {
-        self.msg_queue.push(ipi_msg);
-    }
-
-    pub fn pop(&mut self) -> Option<IpiMessage> {
-        self.msg_queue.pop()
-    }
-}
-
-pub static CPU_INTERFACE_LIST: Mutex<Vec<CpuInterface>> = Mutex::new(Vec::new());
-
-fn cpu_interface_init() {
-    // Suppose only one cpu now. Ipi related, this function is not used now.
-    let mut cpu_interface_list = CPU_INTERFACE_LIST.lock();
-    cpu_interface_list.push(CpuInterface::default());
-}
-
 #[repr(C)]
 #[repr(align(4096))]
-pub struct Cpu{
+pub struct Cpu<H:HyperCraftHal>{   //stack_top_addr has no use yet?
     pub cpu_id: usize,
-    pub cpu_state: CpuState,
-    pub context_addr: Option<usize>,
-
+    // stack_top_addr: HostVirtAddr,
     pub active_vcpu: Option<Vcpu>,
     pub vcpu_queue: Mutex<VecDeque<usize>>,
-
+    stack_top_addr: HostVirtAddr,
     pub current_irq: usize,
+    marker: core::marker::PhantomData<H>,
 }
 
 /// The base address of the per-CPU memory region.
 static PER_CPU_BASE: Once<HostPhysAddr> = Once::new();
 
-impl Cpu {
-    const fn new(cpu_id: usize) -> Self {
-        Cpu {
+impl <H: HyperCraftHal> Cpu<H> {
+    const fn new(cpu_id: usize, stack_top_addr: HostVirtAddr) -> Self {
+        Self {
             cpu_id: cpu_id,
-            cpu_state: CpuState::CpuInactive,
-            context_addr: None,
             active_vcpu: None,
+            stack_top_addr: stack_top_addr,
             vcpu_queue: Mutex::new(VecDeque::new()),
             current_irq: 0,
+            marker: core::marker::PhantomData,
         }
     }
 
-    pub fn init(boot_id: usize, stack_size: usize, hypercrafthal: &dyn HyperCraftHal) -> HyperResult<()> {
+    pub fn init(boot_id: usize, stack_size: usize) -> HyperResult<()> {
         let cpu_nums: usize = 1;
-        let pcpu_size = core::mem::size_of::<Cpu>() * cpu_nums;
+        let pcpu_size = core::mem::size_of::<Cpu<H>>() * cpu_nums;
         debug!("pcpu_size: {:#x}", pcpu_size);
-        let pcpu_pages = hypercrafthal.alloc_pages((pcpu_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
+        let pcpu_pages = H::alloc_pages((pcpu_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
             .ok_or(HyperError::NoMemory)?;
         debug!("pcpu_pages: {:#x}", pcpu_pages);
         PER_CPU_BASE.call_once(|| pcpu_pages);
         for cpu_id in 0..cpu_nums {
-            if cpu_id != boot_id {
-                hypercrafthal.alloc_pages((stack_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
+            let stack_top_addr = if cpu_id == boot_id {
+                let boot_stack_top = Self::boot_cpu_stack()?;
+                debug!("boot_stack_top: {:#x}", boot_stack_top);
+                boot_stack_top
+            } else {
+                H::alloc_pages((stack_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
                     .ok_or(HyperError::NoMemory)?
-            }
-            let pcpu: Cpu = Self::new(cpu_id);
+            };
+            let pcpu: Cpu<H> = Self::new(cpu_id, stack_top_addr);
             let ptr = Self::ptr_for_cpu(cpu_id);
             // Safety: ptr is guaranteed to be properly aligned and point to valid memory owned by
             // PerCpu. No other CPUs are alive at this point, so it cannot be concurrently modified
             // either.
-            unsafe { core::ptr::write(ptr as *mut Cpu, pcpu) };
+            unsafe { core::ptr::write(ptr as *mut Cpu<H>, pcpu) };
         }
 
         // Initialize TP register and set this CPU online to be consistent with secondary CPUs.
@@ -118,9 +93,9 @@ impl Cpu {
     }
 
     /// Returns a pointer to the `PerCpu` for the given CPU.
-    fn ptr_for_cpu(cpu_id: usize) -> *const Cpu {
-        let pcpu_addr = PER_CPU_BASE.get().unwrap() + cpu_id * core::mem::size_of::<Cpu>();
-        pcpu_addr as *const Cpu
+    fn ptr_for_cpu(cpu_id: usize) -> *const Cpu<H> {
+        let pcpu_addr = PER_CPU_BASE.get().unwrap() + cpu_id * core::mem::size_of::<Cpu<H>>();
+        pcpu_addr as *const Cpu<H>
     }
 
     /// Initializes the TP pointer to point to PerCpu data.
@@ -142,84 +117,18 @@ impl Cpu {
         result
     }
 
-    pub fn set_context_addr(&mut self, context: *mut ContextFrame) {
-        self.context_addr = Some(context as usize);
-    }
-
-    pub fn clear_context_addr(&mut self) {
-        self.context_addr = None;
-    }
-
-    pub fn set_gpr(&self, idx: usize, val: usize) {
-        if idx >= CONTEXT_GPR_NUM {
-            return;
-        }
-        match self.context_addr {
-            Some(context_addr) => {
-                let context = context_addr as *mut ContextFrame;
-                unsafe {
-                    (*context).set_gpr(idx, val);
-                }
-            }
-            None => {}
-        }
-    }
-
-    pub fn get_gpr(&self, idx: usize) -> usize {
-        if idx >= CONTEXT_GPR_NUM {
-            return 0;
-        }
-        match self.context_addr {
-            Some(context_addr) => {
-                if context_addr < 0x1000 {
-                    panic!("illegal context addr {:x}", context_addr);
-                }
-                let context = context_addr as *mut ContextFrame;
-                unsafe { (*context).gpr(idx) }
-            }
-            None => 0,
-        }
-    }
-
-    pub fn get_elr(&self) -> usize {
-        match self.context_addr {
-            Some(context_addr) => {
-                if context_addr < 0x1000 {
-                    panic!("illegal context addr {:x}", context_addr);
-                }
-                let context = context_addr as *mut ContextFrame;
-                unsafe { (*context).exception_pc() }
-            }
-            None => 0,
-        }
-    }
-
-    pub fn get_spsr(&self) -> usize {
-        match self.context_addr {
-            Some(context_addr) => {
-                if context_addr < 0x1000 {
-                    panic!("illegal context addr {:x}", context_addr);
-                }
-                let context = context_addr as *mut ContextFrame;
-                unsafe { (*context).spsr as usize }
-            }
-            None => 0,
-        }
-    }
-
-    pub fn set_elr(&self, val: usize) {
-        match self.context_addr {
-            Some(context_addr) => {
-                let context = context_addr as *mut ContextFrame;
-                unsafe { (*context).set_exception_pc(val) }
-            }
-            None => {}
-        }
+    fn boot_cpu_stack() -> HyperResult<GuestPhysAddr> {
+        // TODO: get boot stack information by interface
+        // extern "Rust" {
+        //     fn BOOT_STACK();
+        // }
+        // Ok(BOOT_STACK as GuestPhysAddr)
+        Ok(0 as GuestPhysAddr)
     }
 
 }
 
-
+/*
 pub fn current_cpu() -> &'static mut Cpu {
     // Make sure PerCpu has been set up.
     assert!(PER_CPU_BASE.get().is_some());
@@ -233,7 +142,7 @@ pub fn current_cpu() -> &'static mut Cpu {
     pcpu
 }
 
-/* 
+ 
 #[def_percpu]
 pub static mut CPU: Cpu = Cpu::new(0);  // hard code for one cpu
 
@@ -260,34 +169,3 @@ pub fn init_cpu() {
     info!("Core {} init ok", current_cpu.cpu_id);
 }
 */
-
-pub fn active_vcpu_id() -> usize {
-    let active_vcpu = current_cpu().active_vcpu.clone().unwrap();
-    active_vcpu.id()
-}
-
-pub fn active_vm_id() -> usize {
-    let vm = active_vm().unwrap();
-    vm.id()
-}
-
-pub fn active_vm() -> Option<Vm> {
-    match current_cpu().active_vcpu.clone() {
-        None => {
-            return None;
-        }
-        Some(active_vcpu) => {
-            return active_vcpu.vm();
-        }
-    }
-}
-
-pub fn active_vm_ncpu() -> usize {
-    /* 
-    match active_vm() {
-        Some(vm) => vm.ncpu(),
-        None => 0,
-    }
-    */
-    0   // only one cpu
-}

@@ -8,14 +8,14 @@
 // MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-use crate::arch::emu::{EmuContext, emu_handler};
-use crate::arch::{current_cpu, active_vm};
 use crate::arch::exception::*;
 use crate::arch::hvc::hvc_guest_handler;
+use crate::arch::ContextFrame;
 
 pub const HVC_RETURN_REG: usize = 0;
 
-pub fn data_abort_handler() {
+pub fn data_abort_handler(ctx: *mut ContextFrame) {
+    /* 
     let emu_ctx = EmuContext {
         address: exception_fault_addr(),
         width: exception_data_abort_access_width(),
@@ -24,12 +24,12 @@ pub fn data_abort_handler() {
         reg: exception_data_abort_access_reg(),
         reg_width: exception_data_abort_access_reg_width(),
     };
-    let elr = current_cpu().get_elr();
+    */
+    let elr = ctx.exception_pc();
 
     if !exception_data_abort_handleable() {
         panic!(
-            "Core {} data abort not handleable 0x{:x}, esr 0x{:x}",
-            current_cpu().cpu_id,
+            "Data abort not handleable 0x{:x}, esr 0x{:x}",
             exception_fault_addr(),
             exception_esr()
         );
@@ -38,11 +38,11 @@ pub fn data_abort_handler() {
     if !exception_data_abort_is_translate_fault() {
         // No migrate need
         panic!(
-            "Core {} data abort is not translate fault 0x{:x}",
-            current_cpu().cpu_id,
+            "Data abort is not translate fault 0x{:x}",
             exception_fault_addr(),
         );           
     }
+    /* 
     if !emu_handler(&emu_ctx) {
         active_vm().unwrap().show_pagetable(emu_ctx.address);
         info!(
@@ -53,7 +53,7 @@ pub fn data_abort_handler() {
             emu_ctx.address,
             exception_iss(),
             emu_ctx.reg,
-            current_cpu().get_gpr(emu_ctx.reg),
+            ctx.get_gpr(emu_ctx.reg),
             exception_esr()
         );
         panic!(
@@ -61,30 +61,31 @@ pub fn data_abort_handler() {
             emu_ctx.address, elr
         );
     }
+    */
     let val = elr + exception_next_instruction_step();
-    current_cpu().set_elr(val);
+    ctx.set_exception_pc(val);
 }
 
-pub fn hvc_handler() {
-    let x0 = current_cpu().get_gpr(0);
-    let x1 = current_cpu().get_gpr(1);
-    let x2 = current_cpu().get_gpr(2);
-    let x3 = current_cpu().get_gpr(3);
-    let x4 = current_cpu().get_gpr(4);
-    let x5 = current_cpu().get_gpr(5);
-    let x6 = current_cpu().get_gpr(6);
-    let mode = current_cpu().get_gpr(7);
+pub fn hvc_handler(ctx: *mut ContextFrame) {
+    let x0 = ctx.gpr(0);
+    let x1 = ctx.gpr(1);
+    let x2 = ctx.gpr(2);
+    let x3 = ctx.gpr(3);
+    let x4 = ctx.gpr(4);
+    let x5 = ctx.gpr(5);
+    let x6 = ctx.gpr(6);
+    let mode = ctx.gpr(7);
 
     let hvc_type = (mode >> 8) & 0xff;
     let event = mode & 0xff;
 
     match hvc_guest_handler(hvc_type, event, x0, x1, x2, x3, x4, x5, x6) {
         Ok(val) => {
-            current_cpu().set_gpr(HVC_RETURN_REG, val);
+            ctx.set_gpr(HVC_RETURN_REG, val);
         }
         Err(_) => {
             warn!("Failed to handle hvc request fid 0x{:x} event 0x{:x}", hvc_type, event);
-            current_cpu().set_gpr(HVC_RETURN_REG, usize::MAX);
+            ctx.set_gpr(HVC_RETURN_REG, usize::MAX);
         }
     }
 }

@@ -14,10 +14,13 @@ use core::fmt::{Display, Formatter};
 
 use spin::Mutex;
 
-use crate::arch::vgic::Vgic;
-use crate::arch::utils::in_range;
-
-use crate::arch::current_cpu;
+use crate::arch::Vgic;
+use crate::device::{
+    virtio_blk_notify_handler, virtio_console_notify_handler, virtio_mediated_blk_notify_handler,
+    virtio_net_notify_handler, VirtioMmio,
+};
+use crate::kernel::current_cpu;
+use crate::lib::in_range;
 
 pub const EMU_DEV_NUM_MAX: usize = 32;
 pub static EMU_DEVS_LIST: Mutex<Vec<EmuDevEntry>> = Mutex::new(Vec::new());
@@ -25,7 +28,53 @@ pub static EMU_DEVS_LIST: Mutex<Vec<EmuDevEntry>> = Mutex::new(Vec::new());
 #[derive(Clone)]
 pub enum EmuDevs {
     Vgic(Arc<Vgic>),
+    VirtioBlk(VirtioMmio),
+    VirtioNet(VirtioMmio),
+    VirtioConsole(VirtioMmio),
     None,
+}
+
+impl EmuDevs {
+    pub fn migrate_emu_devs(&mut self, src_dev: EmuDevs) {
+        match self {
+            EmuDevs::Vgic(vgic) => {
+                if let EmuDevs::Vgic(src_vgic) = src_dev {
+                    vgic.save_vgic(src_vgic);
+                } else {
+                    println!("EmuDevs::migrate_save: illegal src dev type for vgic");
+                }
+            }
+            EmuDevs::VirtioBlk(mmio) => {
+                if let EmuDevs::VirtioBlk(src_mmio) = src_dev {
+                    mmio.save_mmio(
+                        src_mmio.clone(),
+                        if src_mmio.dev().mediated() {
+                            Some(virtio_mediated_blk_notify_handler)
+                        } else {
+                            Some(virtio_blk_notify_handler)
+                        },
+                    );
+                } else {
+                    println!("EmuDevs::migrate_save: illegal src dev type for virtio blk");
+                }
+            }
+            EmuDevs::VirtioNet(mmio) => {
+                if let EmuDevs::VirtioNet(src_mmio) = src_dev {
+                    mmio.save_mmio(src_mmio, Some(virtio_net_notify_handler));
+                } else {
+                    println!("EmuDevs::migrate_save: illegal src dev type for virtio net");
+                }
+            }
+            EmuDevs::VirtioConsole(mmio) => {
+                if let EmuDevs::VirtioConsole(src_mmio) = src_dev {
+                    mmio.save_mmio(src_mmio, Some(virtio_console_notify_handler));
+                } else {
+                    println!("EmuDevs::migrate_save: illegal src dev type for virtio console");
+                }
+            }
+            EmuDevs::None => {}
+        }
+    }
 }
 
 pub struct EmuContext {
@@ -48,15 +97,29 @@ pub struct EmuDevEntry {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EmuDeviceType {
+    EmuDeviceTConsole = 0,
     EmuDeviceTGicd = 1,
+    EmuDeviceTGPPT = 2,
+    EmuDeviceTVirtioBlk = 3,
+    EmuDeviceTVirtioNet = 4,
+    EmuDeviceTVirtioConsole = 5,
     EmuDeviceTShyper = 6,
+    EmuDeviceTVirtioBlkMediated = 7,
+    EmuDeviceTIOMMU = 8,
 }
 
 impl Display for EmuDeviceType {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
+            EmuDeviceType::EmuDeviceTConsole => write!(f, "console"),
             EmuDeviceType::EmuDeviceTGicd => write!(f, "interrupt controller"),
+            EmuDeviceType::EmuDeviceTGPPT => write!(f, "partial passthrough interrupt controller"),
+            EmuDeviceType::EmuDeviceTVirtioBlk => write!(f, "virtio block"),
+            EmuDeviceType::EmuDeviceTVirtioNet => write!(f, "virtio net"),
+            EmuDeviceType::EmuDeviceTVirtioConsole => write!(f, "virtio console"),
             EmuDeviceType::EmuDeviceTShyper => write!(f, "device shyper"),
+            EmuDeviceType::EmuDeviceTVirtioBlkMediated => write!(f, "medaited virtio block"),
+            EmuDeviceType::EmuDeviceTIOMMU => write!(f, "IOMMU"),
         }
     }
 }
@@ -64,7 +127,11 @@ impl Display for EmuDeviceType {
 impl EmuDeviceType {
     pub fn removable(&self) -> bool {
         match *self {
-            EmuDeviceType::EmuDeviceTGicd => true,
+            EmuDeviceType::EmuDeviceTGicd
+            | EmuDeviceType::EmuDeviceTGPPT
+            | EmuDeviceType::EmuDeviceTVirtioBlk
+            | EmuDeviceType::EmuDeviceTVirtioNet
+            | EmuDeviceType::EmuDeviceTVirtioConsole => true,
             _ => false,
         }
     }
@@ -73,8 +140,15 @@ impl EmuDeviceType {
 impl EmuDeviceType {
     pub fn from_usize(value: usize) -> EmuDeviceType {
         match value {
+            0 => EmuDeviceType::EmuDeviceTConsole,
             1 => EmuDeviceType::EmuDeviceTGicd,
+            2 => EmuDeviceType::EmuDeviceTGPPT,
+            3 => EmuDeviceType::EmuDeviceTVirtioBlk,
+            4 => EmuDeviceType::EmuDeviceTVirtioNet,
+            5 => EmuDeviceType::EmuDeviceTVirtioConsole,
             6 => EmuDeviceType::EmuDeviceTShyper,
+            7 => EmuDeviceType::EmuDeviceTVirtioBlkMediated,
+            8 => EmuDeviceType::EmuDeviceTIOMMU,
             _ => panic!("Unknown  EmuDeviceType value: {}", value),
         }
     }
@@ -90,15 +164,18 @@ pub fn emu_handler(emu_ctx: &EmuContext) -> bool {
     for emu_dev in &*emu_devs_list {
         let active_vcpu = current_cpu().active_vcpu.clone().unwrap();
         if active_vcpu.vm_id() == emu_dev.vm_id && in_range(ipa, emu_dev.ipa, emu_dev.size - 1) {
+            // if current_cpu().id == 2 {
+            //     println!("emu dev {:#?} handler", emu_dev.emu_type);
+            // }
             let handler = emu_dev.handler;
             let id = emu_dev.id;
             drop(emu_devs_list);
             return handler(id, emu_ctx);
         }
     }
-    info!(
+    println!(
         "emu_handler: no emul handler for Core {} data abort ipa 0x{:x}",
-        current_cpu().cpu_id,
+        current_cpu().id,
         ipa
     );
     return false;
@@ -125,6 +202,7 @@ pub fn emu_register_dev(
             panic!("emu_register_dev: duplicated emul address region: prev address 0x{:x} size 0x{:x}, next address 0x{:x} size 0x{:x}", emu_dev.ipa, emu_dev.size, address, size);
         }
     }
+
     emu_devs_list.push(EmuDevEntry {
         emu_type,
         vm_id,
