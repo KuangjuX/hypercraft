@@ -10,87 +10,36 @@
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use page_table::PagingIf;
 use core::mem::size_of;
 use spin::Mutex;
+use core::marker::PhantomData;
 
 // type ContextFrame = crate::arch::contextFrame::Aarch64ContextFrame;
 use cortex_a::registers::*;
 use tock_registers::interfaces::*;
  
-use crate::arch::{ContextFrame, memcpy_safe};
+use crate::arch::ContextFrame;
 use crate::arch::contextFrame::VmContext;
 use crate::traits::ContextFrameTrait;
-use crate::arch::vm::Vm;
-use crate::arch::gic::{GICD, GICC, GICH};
-use crate::arch::cpu::CpuState;
+use crate::arch::cpu::current_cpu;
+use crate::HyperCraftHal;
 
-#[derive(Clone, Copy, Debug)]
-pub enum VcpuState {
-    VcpuInv = 0,
-    VcpuPend = 1,
-    VcpuAct = 2,
-}
-
+/* 
 #[derive(Clone)]
-pub struct Vcpu {
-    pub inner: Arc<Mutex<VcpuInner>>,
+pub struct Vcpu<H: HyperCraftHal> {
+    pub inner: Arc<Mutex<VcpuInner<H>>>,
 }
 
-impl Vcpu {
-    pub fn new(id:usize, phys_id: usize) -> Vcpu {
+impl <H: HyperCraftHal>Vcpu<H> {
+    pub fn new(id:usize, phys_id: usize) -> Self {
         Vcpu {
-            inner: Arc::new(Mutex::new(VcpuInner::new(id, phys_id))),
+            inner: Arc::new(Mutex::new(VcpuInner::new(id))),
         }
-    }
-
-    pub fn set_gicc_ctlr(&self, ctlr: u32) {
-        let mut inner = self.inner.lock();
-        inner.vm_ctx.gic_state.saved_ctlr = ctlr;
-    }
-
-    pub fn set_hcr(&self, hcr: u64) {
-        let mut inner = self.inner.lock();
-        inner.vm_ctx.hcr_el2 = hcr;
-    }
-
-    pub fn state(&self) -> VcpuState {
-        let inner = self.inner.lock();
-        inner.state.clone()
-    }
-
-    pub fn set_state(&self, state: VcpuState) {
-        let mut inner = self.inner.lock();
-        inner.state = state;
     }
 
     pub fn id(&self) -> usize {
         let inner = self.inner.lock();
-        inner.id
-    }
-
-    pub fn vm(&self) -> Option<Vm> {
-        let inner = self.inner.lock();
-        inner.vm.clone()
-    }
-
-    pub fn phys_id(&self) -> usize {
-        let inner = self.inner.lock();
-        inner.phys_id
-    }
-
-    pub fn vm_id(&self) -> usize {
-        self.vm().unwrap().id()
-    }
-
-    pub fn reset_context(&self) {
-        let mut inner = self.inner.lock();
-        inner.reset_context();
-    }
-
-    pub fn context_ext_regs_store(&self) {
-        let mut inner = self.inner.lock();
-        inner.context_ext_regs_store();
+        inner.vcpu_id
     }
 
     pub fn vcpu_ctx_addr(&self) -> usize {
@@ -113,51 +62,94 @@ impl Vcpu {
         inner.set_gpr(idx, val);
     }
 
-    pub fn show_ctx(&self) {
-        let inner = self.inner.lock();
-        inner.show_ctx();
+    pub fn run(&self) -> ! {
+        todo!()
     }
+}
+*/
 
-    pub fn push_int(&self, int: usize) {
-        let mut inner = self.inner.lock();
-        if !inner.int_list.contains(&int) {
-            inner.int_list.push(int);
+#[repr(C)]
+#[derive(Clone, Debug)]
+pub struct VmCpuRegisters {
+    trap_context_regs: ContextFrame,
+    vm_system_regs: VmContext,
+}
+
+impl VmCpuRegisters {
+    pub fn default() -> VmCpuRegisters {
+        VmCpuRegisters {
+            trap_context_regs: ContextFrame::default(),
+            vm_system_regs: VmContext::default(),
         }
     }
 }
 
-pub struct VcpuInner {
-    pub id: usize,
-    pub phys_id: usize,
-    pub state: VcpuState,
-    pub vm: Option<Vm>,
-    pub int_list: Vec<usize>,
-    pub vcpu_ctx: ContextFrame,
-    pub vm_ctx: VmContext,
+#[derive(Clone)]
+pub struct VCpu<H:HyperCraftHal> {
+    pub vcpu_id: usize,
+    pub regs: VmCpuRegisters,
+    // pub vcpu_ctx: ContextFrame,
+    // pub vm_ctx: VmContext,
+    // pub vm: Option<Vm>,
+    // pub int_list: Vec<usize>,
+    marker: PhantomData<H>,
 }
 
-impl VcpuInner {
-    pub fn new(id: usize, phys_id: usize) -> VcpuInner {
-        VcpuInner {
-            id: id,
-            phys_id: phys_id,
-            state: VcpuState::VcpuInv,
-            vm: None,
-            int_list: vec![],
-            vcpu_ctx: ContextFrame::default(),
-            vm_ctx: VmContext::default(),
+impl <H:HyperCraftHal> VCpu<H> {
+    pub fn new(id: usize) -> Self {
+        Self {
+            vcpu_id: id,
+            regs: VmCpuRegisters::default(),
+            // vcpu_ctx: ContextFrame::default(),
+            // vm_ctx: VmContext::default(),
+            // vm: None,
+            // int_list: vec![],
+            marker: PhantomData,
         }
     }
 
-    fn vcpu_ctx_addr(&self) -> usize {
-        &(self.vcpu_ctx) as *const _ as usize
+    pub fn vcpu_id(&self) -> usize {
+        self.vcpu_id
+    }
+    pub fn vcpu_ctx_addr(&self) -> usize {
+        &(self.regs.trap_context_regs) as *const _ as usize
     }
 
-    fn vm_id(&self) -> usize {
-        let vm = self.vm.as_ref().unwrap();
-        vm.id()
+    pub fn set_elr(&mut self, elr: usize) {
+        self.regs.trap_context_regs.set_exception_pc(elr);
     }
 
+    pub fn set_gpr(&mut self, idx: usize, val: usize) {
+        self.regs.trap_context_regs.set_gpr(idx, val);
+    }
+
+    pub fn reset_context(&mut self) {
+        self.arch_ctx_reset();
+        // self.gic_ctx_reset(); // because of passthrough gic, do not need gic context anymore?
+    }
+
+    fn arch_ctx_reset(&mut self) {
+        self.regs.vm_system_regs.cntvoff_el2 = 0;
+        self.regs.vm_system_regs.sctlr_el1 = 0x30C50830;
+        self.regs.vm_system_regs.cntkctl_el1 = 0;
+        self.regs.vm_system_regs.pmcr_el0 = 0;
+        self.regs.vm_system_regs.vtcr_el2 = 0x8001355c;
+        let mut vmpidr = 0;
+        vmpidr |= 1 << 31;
+        vmpidr |= self.vcpu_id;
+        self.regs.vm_system_regs.vmpidr_el2 = vmpidr as u64;
+    }
+
+    pub fn run(context: usize) -> ! {
+        extern "C" {
+            fn context_vm_entry(ctx: usize) -> !;
+        }
+        unsafe {
+            context_vm_entry(context);
+        }
+    }
+
+/*
     fn arch_ctx_reset(&mut self) {
         // let migrate = self.vm.as_ref().unwrap().migration_state();
         // if !migrate {
@@ -167,21 +159,16 @@ impl VcpuInner {
         self.vm_ctx.pmcr_el0 = 0;
         self.vm_ctx.vtcr_el2 = 0x8001355c;
         // }
-        let mut vmpidr = 0;
-        vmpidr |= 1 << 31;
+        // let mut vmpidr = 0;
+        // vmpidr |= 1 << 31;
 
-        vmpidr |= self.id;
-        self.vm_ctx.vmpidr_el2 = vmpidr as u64;
+        // vmpidr |= self.id;
+        // self.vm_ctx.vmpidr_el2 = vmpidr as u64;
     }
 
-    fn reset_vtimer_offset(&mut self) {
-        let curpct = cortex_a::registers::CNTPCT_EL0.get() as u64;
-        self.vm_ctx.cntvoff_el2 = curpct - self.vm_ctx.cntvct_el0;
-    }
-    
     fn reset_context(&mut self) {
         self.arch_ctx_reset();
-        self.gic_ctx_reset();
+        // self.gic_ctx_reset(); // because of passthrough gic, do not need gic context anymore?
     }
 
     fn gic_ctx_reset(&mut self) {
@@ -194,38 +181,14 @@ impl VcpuInner {
         }
         self.vm_ctx.gic_state.saved_hcr |= 1 << 2;
     }
+    
+    */
 
-    fn context_ext_regs_store(&mut self) {
-        self.vm_ctx.ext_regs_store();
-    }
-
-    fn reset_vm_ctx(&mut self) {
-        self.vm_ctx.reset();
-    }
-
-    fn set_elr(&mut self, elr: usize) {
-        self.vcpu_ctx.set_exception_pc(elr);
-    }
-
-    fn set_gpr(&mut self, idx: usize, val: usize) {
-        self.vcpu_ctx.set_gpr(idx, val);
-    }
-
-    fn show_ctx(&self) {
-        info!(
-            "cntvoff_el2 {:x}, sctlr_el1 {:x}, cntkctl_el1 {:x}, pmcr_el0 {:x}, vtcr_el2 {:x} x0 {:x}",
-            self.vm_ctx.cntvoff_el2,
-            self.vm_ctx.sctlr_el1,
-            self.vm_ctx.cntkctl_el1,
-            self.vm_ctx.pmcr_el0,
-            self.vm_ctx.vtcr_el2,
-            self.vcpu_ctx.gpr(0)
-        );
-    }
 }
 
-pub static VCPU_LIST: Mutex<Vec<Vcpu>> = Mutex::new(Vec::new());
+// pub static VCPU_LIST: Mutex<Vec<Vcpu>> = Mutex::new(Vec::new());
 /* 
+
 pub fn restore_vcpu_gic(cur_vcpu: Option<Vcpu>, trgt_vcpu: Vcpu) {
     // println!("restore_vcpu_gic");
     match cur_vcpu {
@@ -268,8 +231,7 @@ pub fn vcpu_arch_init(vm: Vm, vcpu: Vcpu) {
         (SPSR_EL1::M::EL1h + SPSR_EL1::I::Masked + SPSR_EL1::F::Masked + SPSR_EL1::A::Masked + SPSR_EL1::D::Masked)
             .value;
 }
-*/
-/* 
+ 
 pub fn vcpu_alloc() -> Option<Vcpu> {
     let mut vcpu_list = VCPU_LIST.lock();
     if vcpu_list.len() >= 8 {

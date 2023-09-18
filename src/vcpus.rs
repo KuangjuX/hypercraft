@@ -4,6 +4,7 @@ use spin::Once;
 
 use crate::{GuestPageTableTrait, HyperCraftHal, HyperError, HyperResult, VCpu, VM};
 
+
 /// The maximum number of CPUs we can support.
 pub const MAX_CPUS: usize = 8;
 

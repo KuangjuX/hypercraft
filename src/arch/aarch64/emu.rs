@@ -1,3 +1,4 @@
+/* 
 // Copyright (c) 2023 Beihang University, Huawei Technologies Co.,Ltd. All rights reserved.
 // Rust-Shyper is licensed under Mulan PSL v2.
 // You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -226,3 +227,4 @@ pub fn emu_remove_dev(vm_id: usize, dev_id: usize, address: usize, size: usize) 
         address, size
     );
 }
+*/

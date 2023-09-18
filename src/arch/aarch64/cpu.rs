@@ -1,4 +1,4 @@
-use alloc::{vec::Vec, collections::VecDeque};
+use alloc::{vec::Vec, collections::VecDeque, sync::Arc};
 use core::arch::asm;
 
 use page_table::PagingIf;
@@ -7,10 +7,8 @@ use spin::{Mutex, Once};
 use percpu_macros::def_percpu;
 
 use crate::{HyperCraftHal, HyperResult, HyperError, HostPhysAddr, HostVirtAddr, GuestPhysAddr};
-use crate::arch::vcpu::Vcpu;
-use crate::arch::vm::Vm;
+use crate::arch::vcpu::VCpu;
 use crate::arch::ContextFrame;
-
 use crate::traits::ContextFrameTrait;
 
 /// need to move to a suitable file?
@@ -20,6 +18,8 @@ pub const CPU_MASTER: usize = 0;
 pub const CPU_STACK_SIZE: usize = PAGE_SIZE_4K * 128;
 pub const CONTEXT_GPR_NUM: usize = 31;
 pub const PTE_PER_PAGE: usize = 512;
+
+pub static current_cpu: usize = 0;
 
 #[derive(Copy, Clone, Debug, Eq)]
 pub enum CpuState {
@@ -39,10 +39,9 @@ impl PartialEq for CpuState {
 pub struct Cpu<H:HyperCraftHal>{   //stack_top_addr has no use yet?
     pub cpu_id: usize,
     // stack_top_addr: HostVirtAddr,
-    pub active_vcpu: Option<Vcpu>,
+    pub active_vcpu: Option<VCpu<H>>,
     pub vcpu_queue: Mutex<VecDeque<usize>>,
     stack_top_addr: HostVirtAddr,
-    pub current_irq: usize,
     marker: core::marker::PhantomData<H>,
 }
 
@@ -56,7 +55,6 @@ impl <H: HyperCraftHal> Cpu<H> {
             active_vcpu: None,
             stack_top_addr: stack_top_addr,
             vcpu_queue: Mutex::new(VecDeque::new()),
-            current_irq: 0,
             marker: core::marker::PhantomData,
         }
     }
@@ -99,20 +97,41 @@ impl <H: HyperCraftHal> Cpu<H> {
     }
 
     /// Initializes the TP pointer to point to PerCpu data.
-    pub fn setup_this_cpu(boot_id: usize) -> HyperResult<()> {
+    pub fn setup_this_cpu(cpu_id: usize) -> HyperResult<()> {
         // Load TP with address of pur PerCpu struct.
-        let tp = Self::ptr_for_cpu(boot_id) as usize;
+        let tp = Self::ptr_for_cpu(cpu_id) as usize;
+        unsafe {
+            current_cpu = tp;
+        }
+        /* 
         unsafe {
             asm!("msr TPIDR_EL2, {}", in(reg) tp)
             // Safe since we're the only users of TP.
             // asm!("mv tp, {rs}", rs = in(reg) tp)
         };
+        */
         Ok(())
     }
 
-    pub fn create_vcpu(&mut self, vcpu_id: usize) -> HyperResult<Vcpu> {
+    /// Returns this CPU's `PerCpu` structure.
+    pub fn this_cpu() -> &'static mut Cpu<H> {
+        // Make sure PerCpu has been set up.
+        assert!(PER_CPU_BASE.get().is_some());
+        let tp: u64;
+        // unsafe { core::arch::asm!("mv {rd}, tp", rd = out(reg) tp) };
+        unsafe { tp = current_cpu as u64; }
+        let pcpu_ptr = tp as *mut Cpu<H>;
+        let pcpu = unsafe {
+            // Safe since TP is set uo to point to a valid PerCpu
+            pcpu_ptr.as_mut().unwrap()
+        };
+        pcpu
+    }
+
+    /// Create a `Vcpu`, set the entry point to `entry` and bind this vcpu into the current CPU.
+    pub fn create_vcpu(&mut self, vcpu_id: usize) -> HyperResult<VCpu<H>> {
         self.vcpu_queue.lock().push_back(vcpu_id);
-        let vcpu = Vcpu::new(vcpu_id, self.cpu_id);
+        let vcpu = VCpu::new(vcpu_id);
         let result = Ok(vcpu);
         result
     }

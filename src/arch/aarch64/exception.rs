@@ -162,7 +162,7 @@ pub fn exception_data_abort_access_is_sign_ext() -> bool {
 }
 
 #[no_mangle]
-extern "C" fn lower_aarch64_synchronous(ctx: *mut ContextFrame) {
+extern "C" fn lower_aarch64_synchronous(ctx: &mut ContextFrame) {
     info!("lower_aarch64_synchronous");
     // current_cpu().set_context_addr(ctx);
     match exception_class() {
