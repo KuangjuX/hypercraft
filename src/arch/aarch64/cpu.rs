@@ -19,8 +19,6 @@ pub const CPU_STACK_SIZE: usize = PAGE_SIZE_4K * 128;
 pub const CONTEXT_GPR_NUM: usize = 31;
 pub const PTE_PER_PAGE: usize = 512;
 
-pub static current_cpu: usize = 0;
-
 #[derive(Copy, Clone, Debug, Eq)]
 pub enum CpuState {
     CpuInactive = 0,
@@ -41,6 +39,7 @@ pub struct Cpu<H:HyperCraftHal>{   //stack_top_addr has no use yet?
     // stack_top_addr: HostVirtAddr,
     pub active_vcpu: Option<VCpu<H>>,
     pub vcpu_queue: Mutex<VecDeque<usize>>,
+    pub context_addr: usize,
     stack_top_addr: HostVirtAddr,
     marker: core::marker::PhantomData<H>,
 }
@@ -54,6 +53,7 @@ impl <H: HyperCraftHal> Cpu<H> {
             cpu_id: cpu_id,
             active_vcpu: None,
             stack_top_addr: stack_top_addr,
+            context_addr: 0,
             vcpu_queue: Mutex::new(VecDeque::new()),
             marker: core::marker::PhantomData,
         }
@@ -100,16 +100,12 @@ impl <H: HyperCraftHal> Cpu<H> {
     pub fn setup_this_cpu(cpu_id: usize) -> HyperResult<()> {
         // Load TP with address of pur PerCpu struct.
         let tp = Self::ptr_for_cpu(cpu_id) as usize;
+
         unsafe {
-            current_cpu = tp;
-        }
-        /* 
-        unsafe {
-            asm!("msr TPIDR_EL2, {}", in(reg) tp)
+            asm!("msr TPIDR_EL1, {}", in(reg) tp)
             // Safe since we're the only users of TP.
             // asm!("mv tp, {rs}", rs = in(reg) tp)
         };
-        */
         Ok(())
     }
 
@@ -118,8 +114,7 @@ impl <H: HyperCraftHal> Cpu<H> {
         // Make sure PerCpu has been set up.
         assert!(PER_CPU_BASE.get().is_some());
         let tp: u64;
-        // unsafe { core::arch::asm!("mv {rd}, tp", rd = out(reg) tp) };
-        unsafe { tp = current_cpu as u64; }
+        unsafe { core::arch::asm!("mrs {}, TPIDR_EL1", out(reg) tp) };
         let pcpu_ptr = tp as *mut Cpu<H>;
         let pcpu = unsafe {
             // Safe since TP is set uo to point to a valid PerCpu
@@ -132,6 +127,9 @@ impl <H: HyperCraftHal> Cpu<H> {
     pub fn create_vcpu(&mut self, vcpu_id: usize) -> HyperResult<VCpu<H>> {
         self.vcpu_queue.lock().push_back(vcpu_id);
         let vcpu = VCpu::new(vcpu_id);
+        if self.context_addr == 0 { // set this to the first vcpu
+            self.context_addr = vcpu.vcpu_ctx_addr();
+        }
         let result = Ok(vcpu);
         result
     }

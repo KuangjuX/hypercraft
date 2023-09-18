@@ -11,6 +11,7 @@
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::mem::size_of;
+use core::arch::global_asm;
 use spin::Mutex;
 use core::marker::PhantomData;
 
@@ -21,8 +22,12 @@ use tock_registers::interfaces::*;
 use crate::arch::ContextFrame;
 use crate::arch::contextFrame::VmContext;
 use crate::traits::ContextFrameTrait;
-use crate::arch::cpu::current_cpu;
 use crate::HyperCraftHal;
+
+global_asm!(include_str!("guest.S"));
+extern "C" {
+    fn context_vm_entry(ctx: usize) -> !;
+}
 
 /* 
 #[derive(Clone)]
@@ -119,15 +124,31 @@ impl <H:HyperCraftHal> VCpu<H> {
     }
 
     pub fn run(&self) -> ! {
-        extern "C" {
-            fn context_vm_entry(ctx: usize) -> !;
-        }
         unsafe {
             context_vm_entry(self.vcpu_ctx_addr());
         }
     }
 
-    fn vcpu_ctx_addr(&self) -> usize {
+    /* 
+    pub fn restore_cpu_ctx(&self) {
+        let inner = self.inner.lock();
+
+        match current_cpu().ctx {
+            None => {
+                println!("restore_cpu_ctx: cpu{} ctx is NULL", current_cpu().id);
+            }
+            Some(ctx) => {
+                memcpy_safe(
+                    ctx as *const u8,
+                    &(inner.vcpu_ctx) as *const _ as *const u8,
+                    size_of::<ContextFrame>(),
+                );
+            }
+        }
+    }
+    */
+
+    pub fn vcpu_ctx_addr(&self) -> usize {
         &(self.regs.trap_context_regs) as *const _ as usize
     }
 
