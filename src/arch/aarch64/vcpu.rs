@@ -108,10 +108,26 @@ impl <H:HyperCraftHal> VCpu<H> {
         }
     }
 
+    pub fn init(&self, kernel_entry_point: usize, device_tree_ipa: usize) {
+        self.vcpu_arch_init(kernel_entry_point, device_tree_ipa);
+        self.init_vm_context();
+    }
+
+
     pub fn vcpu_id(&self) -> usize {
         self.vcpu_id
     }
-    pub fn vcpu_ctx_addr(&self) -> usize {
+
+    pub fn run(&self) -> ! {
+        extern "C" {
+            fn context_vm_entry(ctx: usize) -> !;
+        }
+        unsafe {
+            context_vm_entry(self.vcpu_ctx_addr());
+        }
+    }
+
+    fn vcpu_ctx_addr(&self) -> usize {
         &(self.regs.trap_context_regs) as *const _ as usize
     }
 
@@ -123,12 +139,7 @@ impl <H:HyperCraftHal> VCpu<H> {
         self.regs.trap_context_regs.set_gpr(idx, val);
     }
 
-    pub fn reset_context(&mut self) {
-        self.arch_ctx_reset();
-        // self.gic_ctx_reset(); // because of passthrough gic, do not need gic context anymore?
-    }
-
-    fn arch_ctx_reset(&mut self) {
+    fn init_vm_context(&mut self) {
         self.regs.vm_system_regs.cntvoff_el2 = 0;
         self.regs.vm_system_regs.sctlr_el1 = 0x30C50830;
         self.regs.vm_system_regs.cntkctl_el1 = 0;
@@ -138,15 +149,19 @@ impl <H:HyperCraftHal> VCpu<H> {
         vmpidr |= 1 << 31;
         vmpidr |= self.vcpu_id;
         self.regs.vm_system_regs.vmpidr_el2 = vmpidr as u64;
+
+        // self.gic_ctx_reset(); // because of passthrough gic, do not need gic context anymore?
     }
 
-    pub fn run(context: usize) -> ! {
-        extern "C" {
-            fn context_vm_entry(ctx: usize) -> !;
-        }
-        unsafe {
-            context_vm_entry(context);
-        }
+    fn vcpu_arch_init(&mut self, kernel_entry_point: usize, device_tree_ipa: usize) {
+        self.set_gpr(0, device_tree_ipa);
+        self.set_elr(kernel_entry_point);
+        self.regs.trap_context_regs.spsr =( SPSR_EL1::M::EL1h + 
+                                            SPSR_EL1::I::Masked + 
+                                            SPSR_EL1::F::Masked + 
+                                            SPSR_EL1::A::Masked + 
+                                            SPSR_EL1::D::Masked )
+                                            .value;
     }
 
 /*
