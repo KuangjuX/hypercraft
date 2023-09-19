@@ -23,6 +23,7 @@ use crate::arch::ContextFrame;
 use crate::arch::contextFrame::VmContext;
 use crate::traits::ContextFrameTrait;
 use crate::HyperCraftHal;
+use crate::arch::hvc::run_guest_by_trap2el2;
 
 global_asm!(include_str!("guest.S"));
 extern "C" {
@@ -79,32 +80,16 @@ impl <H:HyperCraftHal> VCpu<H> {
         self.vcpu_id
     }
 
-    pub fn run(&self) -> ! {
-        unsafe {
-            context_vm_entry(self.vcpu_ctx_addr());
+    pub fn run(&self, vttbr_token: usize) -> ! {
+        loop {  // because of elr_el2, it will not return to this?
+            let ret = run_guest_by_trap2el2(vttbr_token, self.vcpu_ctx_addr());
         }
     }
-
-    /* 
-    pub fn restore_cpu_ctx(&self) {
-        let inner = self.inner.lock();
-
-        match current_cpu().ctx {
-            None => {
-                println!("restore_cpu_ctx: cpu{} ctx is NULL", current_cpu().id);
-            }
-            Some(ctx) => {
-                memcpy_safe(
-                    ctx as *const u8,
-                    &(inner.vcpu_ctx) as *const _ as *const u8,
-                    size_of::<ContextFrame>(),
-                );
-            }
-        }
-    }
-    */
-
+    
     pub fn vcpu_ctx_addr(&self) -> usize {
+        &(self.regs) as *const _ as usize
+    }
+    pub fn vcpu_trap_ctx_addr(&self) -> usize {
         &(self.regs.trap_context_regs) as *const _ as usize
     }
 
@@ -122,6 +107,7 @@ impl <H:HyperCraftHal> VCpu<H> {
         self.regs.vm_system_regs.cntkctl_el1 = 0;
         self.regs.vm_system_regs.pmcr_el0 = 0;
         self.regs.vm_system_regs.vtcr_el2 = 0x8001355c;
+        self.regs.vm_system_regs.hcr_el2 = 0x80000001;  // Maybe we do not need smc setting? passthrough gic.
         let mut vmpidr = 0;
         vmpidr |= 1 << 31;
         vmpidr |= self.vcpu_id;

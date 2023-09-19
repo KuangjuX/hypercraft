@@ -1,18 +1,20 @@
 use crate::{HyperCraftHal, GuestPageTableTrait, VmCpus, HyperResult};
-use crate::arch::cpu::Cpu;
 
 
 #[repr(align(4096))]
 pub struct VM<H: HyperCraftHal, G: GuestPageTableTrait> {
     vcpus: VmCpus<H>,
     gpt: G,
+    vm_id: usize,
 }
 
 impl <H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
-    pub fn new(vcpus: VmCpus<H>, gpt: G)-> HyperResult<Self> {
+    pub fn new(vcpus: VmCpus<H>, gpt: G, id: usize)-> HyperResult<Self> {
         Ok(Self { 
-            vcpus: vcpus, 
-            gpt: gpt, }
+                vcpus: vcpus, 
+                gpt: gpt, 
+                vm_id: id
+            }
         )
     }
 
@@ -23,10 +25,10 @@ impl <H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
 
     pub fn run(&self, vcpu_id: usize) {
         let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
-        
+        vcpu.run(self.get_vttbr_token());
     }
 
-    fn get_gpt_root_addr(&self) -> usize {
-        self.gpt.token()
+    fn get_vttbr_token(&self) -> usize {
+        (self.vm_id << 48) | self.gpt.token()
     }
 }

@@ -20,7 +20,7 @@ pub const PTE_PER_PAGE: usize = 512;
 
 #[repr(C)]
 #[repr(align(4096))]
-pub struct Cpu<H:HyperCraftHal>{   //stack_top_addr has no use yet?
+pub struct PerCpu<H:HyperCraftHal>{   //stack_top_addr has no use yet?
     pub cpu_id: usize,
     stack_top_addr: HostVirtAddr,
     pub vcpu_queue: Mutex<VecDeque<usize>>,
@@ -31,7 +31,7 @@ pub struct Cpu<H:HyperCraftHal>{   //stack_top_addr has no use yet?
 /// The base address of the per-CPU memory region.
 static PER_CPU_BASE: Once<HostPhysAddr> = Once::new();
 
-impl <H: HyperCraftHal> Cpu<H> {
+impl <H: HyperCraftHal> PerCpu<H> {
     const fn new(cpu_id: usize, stack_top_addr: HostVirtAddr) -> Self {
         Self {
             cpu_id: cpu_id,
@@ -44,7 +44,7 @@ impl <H: HyperCraftHal> Cpu<H> {
 
     pub fn init(boot_id: usize, stack_size: usize) -> HyperResult<()> {
         let cpu_nums: usize = 1;
-        let pcpu_size = core::mem::size_of::<Cpu<H>>() * cpu_nums;
+        let pcpu_size = core::mem::size_of::<PerCpu<H>>() * cpu_nums;
         debug!("pcpu_size: {:#x}", pcpu_size);
         let pcpu_pages = H::alloc_pages((pcpu_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
             .ok_or(HyperError::NoMemory)?;
@@ -59,12 +59,12 @@ impl <H: HyperCraftHal> Cpu<H> {
                 H::alloc_pages((stack_size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K)
                     .ok_or(HyperError::NoMemory)?
             };
-            let pcpu: Cpu<H> = Self::new(cpu_id, stack_top_addr);
+            let pcpu: PerCpu<H> = Self::new(cpu_id, stack_top_addr);
             let ptr = Self::ptr_for_cpu(cpu_id);
             // Safety: ptr is guaranteed to be properly aligned and point to valid memory owned by
             // PerCpu. No other CPUs are alive at this point, so it cannot be concurrently modified
             // either.
-            unsafe { core::ptr::write(ptr as *mut Cpu<H>, pcpu) };
+            unsafe { core::ptr::write(ptr as *mut PerCpu<H>, pcpu) };
         }
 
         // Initialize TP register and set this CPU online to be consistent with secondary CPUs.
@@ -87,12 +87,12 @@ impl <H: HyperCraftHal> Cpu<H> {
     }
 
     /// Returns this CPU's `PerCpu` structure.
-    pub fn this_cpu() -> &'static mut Cpu<H> {
+    pub fn this_cpu() -> &'static mut PerCpu<H> {
         // Make sure PerCpu has been set up.
         assert!(PER_CPU_BASE.get().is_some());
         let tp: u64;
         unsafe { core::arch::asm!("mrs {}, TPIDR_EL1", out(reg) tp) };
-        let pcpu_ptr = tp as *mut Cpu<H>;
+        let pcpu_ptr = tp as *mut PerCpu<H>;
         let pcpu = unsafe {
             // Safe since TP is set uo to point to a valid PerCpu
             pcpu_ptr.as_mut().unwrap()
@@ -105,7 +105,7 @@ impl <H: HyperCraftHal> Cpu<H> {
         self.vcpu_queue.lock().push_back(vcpu_id);
         let vcpu = VCpu::<H>::new(vcpu_id);
         if self.context_addr == 0 { // set this to the first vcpu
-            self.context_addr = vcpu.vcpu_ctx_addr();
+            self.context_addr = vcpu.vcpu_trap_ctx_addr();
         }
         let result = Ok(vcpu);
         result
@@ -117,9 +117,9 @@ impl <H: HyperCraftHal> Cpu<H> {
     }
 
     /// Returns a pointer to the `PerCpu` for the given CPU.
-    fn ptr_for_cpu(cpu_id: usize) -> *const Cpu<H> {
-        let pcpu_addr = PER_CPU_BASE.get().unwrap() + cpu_id * core::mem::size_of::<Cpu<H>>();
-        pcpu_addr as *const Cpu<H>
+    fn ptr_for_cpu(cpu_id: usize) -> *const PerCpu<H> {
+        let pcpu_addr = PER_CPU_BASE.get().unwrap() + cpu_id * core::mem::size_of::<PerCpu<H>>();
+        pcpu_addr as *const PerCpu<H>
     }
 
     fn boot_cpu_stack() -> HyperResult<GuestPhysAddr> {

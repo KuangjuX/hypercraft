@@ -43,14 +43,11 @@ pub type HyperResult<T = ()> = Result<T, HyperError>;
 pub use arch::{
     init_hv_runtime, GprIndex, HyperCallMsg, NestedPageTable, PerCpu, VCpu, VmExitInfo, VM,
 };
-
-#[cfg(target_arch = "aarch64")]*/
-pub use arch::{
-    A64HVPageTable, Cpu, VCpu, VM,
-};
-
+*/
 // #[cfg(target_arch = "aarch64")]
-pub use arch::init_hv_by_trap2el2;
+pub use arch::{
+    A64HVPageTable, VCpu, VM,
+};
 
 pub use hal::HyperCraftHal;
 pub use memory::{

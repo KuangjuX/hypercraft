@@ -11,11 +11,10 @@ mod gic;
 mod ept;
 
 pub use gic::{GICC, GICD, GICH, GICD_BASE};
-pub use hvc::init_hv_by_trap2el2;
 pub use ept::A64HVPageTable;
 pub use vcpu::VCpu;
 pub use vm::VM;
-pub use cpu::Cpu;
+pub use cpu::PerCpu;
 
 // pub use config::*;
 

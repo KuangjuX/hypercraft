@@ -27,7 +27,7 @@ pub fn hvc_guest_handler(
     x6: usize,
 ) -> Result<usize, ()> {
     match hvc_type {
-        HVC_SYS => hvc_sys_handler(event, x0, x1, x2),
+        HVC_SYS => hvc_sys_handler(event, x0, x1),
         _ => {
             info!("hvc_guest_handler: unknown hvc type {} event {}", hvc_type, event);
             Err(())
@@ -35,10 +35,15 @@ pub fn hvc_guest_handler(
     }
 }
 
-fn hvc_sys_handler(event: usize, x0: usize, x1: usize, x2:usize) -> Result<usize, ()> {
+pub fn run_guest_by_trap2el2(token: usize, regs_addr: usize) -> usize {
+    // mode is in x7. hvc_type: HVC_SYS; event: HVC_SYS_SET_EL2
+    hvc_call(token, regs_addr, 0, 0, 0, 0, 0, 0)
+}
+
+fn hvc_sys_handler(event: usize, x0: usize, x1: usize) -> Result<usize, ()> {
     match event {
         HVC_SYS_BOOT => {
-            init_hv(x0, x1, x2);
+            init_hv(x0, x1);
             Ok(0)
         }
 
@@ -47,10 +52,12 @@ fn hvc_sys_handler(event: usize, x0: usize, x1: usize, x2:usize) -> Result<usize
 }
 
 /// hvc handler for initial hv
-/// x0: root_paddr, x1: exception vector base, x2: vm regs context addr
-fn init_hv(x0: usize, x1: usize, x2: usize) {
-    let regs: &VmCpuRegisters = unsafe{core::mem::transmute(x2)};
+/// x0: root_paddr, x1: vm regs context addr
+fn init_hv(x0: usize, x1: usize) {
+    let regs: &VmCpuRegisters = unsafe{core::mem::transmute(x1)};
 
+    // set vm system related register
+    regs.vm_system_regs.ext_regs_restore();
     // cptr_el2: Controls trapping to EL2 for accesses to the CPACR, Trace functionality 
     //           and registers associated with floating-point and Advanced SIMD execution.
     // hcr_el2 set to 0x80000019 (do not trap smc?)
@@ -65,19 +72,17 @@ fn init_hv(x0: usize, x1: usize, x2: usize) {
     //             in EL2 unless routed by SCTLR_EL3.FIQ bit to EL3. Virtual FIQ interrupt is enabled.
     // hcr_el2[0]: Enables second stage of translation.
     //             1 value: Enables second stage translation for execution in EL1 and EL0.
+
+    // x1 contains exception vector base, remove this line and set this when system boot?
+    // msr vbar_el2, x1      
     core::arch::asm!("
         mov x3, xzr           // Trap nothing from EL1 to El2.
         msr cptr_el2, x3
 
-        bl {init_hv_mmu}      // x0 contains root_paddr
-
-        ldr x2, =(0x80000001)  // passthrough gic
-        msr hcr_el2, x2       // Set hcr_el2 for hypervisor control.
+        msr vttbr_el2, x0     // x0 contains vttbr token
 
         mov x2, 1
         msr spsel, x2         // Use SP_ELx for Exception level ELx.
-
-        msr vbar_el2, x1      // x1 contains exception vector base
 
         ldr x2, =(0x30c51835)  // Set system control register for EL2.
         msr sctlr_el2, x2
@@ -85,11 +90,18 @@ fn init_hv(x0: usize, x1: usize, x2: usize) {
         tlbi	alle2         // Flush tlb
 	    dsb	nsh
 	    isb
-    ", init_hv_mmu = sym init_hv_mmu, 
-    )
+    ")
 }
 
-unsafe fn init_hv_mmu(root_paddr: usize) {
+// really need init MAIR_EL2 and TCR_EL2 ??
+// MAIR_EL2: Provides the memory attribute encodings corresponding to the possible 
+//           AttrIndx values in a Long-descriptor format translation table entry for 
+//           stage 1 translations at EL2.
+// TCR_EL2: When the Effective value of HCR_EL2.E2H is 0, this register controls stage 1 
+//          of the EL2 translation regime, that supports a single VA range, translated 
+//          using TTBR0_EL2.
+/* 
+unsafe fn init_hv_mmu(token: usize) {
     MAIR_EL2.write(
         MAIR_EL2::Attr0_Device::nonGathering_nonReordering_noEarlyWriteAck
             + MAIR_EL2::Attr1_Normal_Outer::WriteBack_NonTransient_ReadWriteAlloc
@@ -111,8 +123,8 @@ unsafe fn init_hv_mmu(root_paddr: usize) {
     // SCTLR_EL2.modify(SCTLR_EL2::M::Enable + SCTLR_EL2::C::Cacheable + SCTLR_EL2::I::Cacheable);
     // barrier::isb(barrier::SY);
 
-    TTBR0_EL2.set(root_paddr as *const usize as u64);
 }
+*/
 
 #[inline(never)]
 fn hvc_call(
@@ -142,9 +154,4 @@ fn hvc_call(
         );
     }
     r0
-}
-
-pub fn init_hv_by_trap2el2(root_paddr: usize, exception_base: usize) -> usize {
-    // mode is in x7. hvc_type: HVC_SYS; event: HVC_SYS_SET_EL2
-    hvc_call(root_paddr, exception_base, 0, 0, 0, 0, 0, 0)
 }
