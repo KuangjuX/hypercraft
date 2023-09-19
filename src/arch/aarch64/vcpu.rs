@@ -29,18 +29,11 @@ extern "C" {
     fn context_vm_entry(ctx: usize) -> !;
 }
 
-pub static mut CURRENT_CONTEXT: ContextFrame = ContextFrame {
-                                                    gpr: [0; 31],
-                                                    sp: 0,
-                                                    elr: 0,
-                                                    spsr: 0,
-                                                };
-
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct VmCpuRegisters {
-    trap_context_regs: ContextFrame,
-    vm_system_regs: VmContext,
+    pub trap_context_regs: ContextFrame,
+    pub vm_system_regs: VmContext,
 }
 
 impl VmCpuRegisters {
@@ -79,12 +72,6 @@ impl <H:HyperCraftHal> VCpu<H> {
     pub fn init(&self, kernel_entry_point: usize, device_tree_ipa: usize) {
         self.vcpu_arch_init(kernel_entry_point, device_tree_ipa);
         self.init_vm_context();
-        unsafe {
-            CURRENT_CONTEXT.gpr = self.regs.trap_context_regs.gpr;
-            CURRENT_CONTEXT.sp = self.regs.trap_context_regs.sp;
-            CURRENT_CONTEXT.elr = self.regs.trap_context_regs.elr;
-            CURRENT_CONTEXT.spsr = self.regs.trap_context_regs.spsr;
-        }
     }
 
 

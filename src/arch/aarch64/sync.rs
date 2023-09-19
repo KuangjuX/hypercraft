@@ -12,7 +12,8 @@ use crate::arch::exception::*;
 use crate::arch::hvc::hvc_guest_handler;
 use crate::arch::ContextFrame;
 use crate::traits::ContextFrameTrait;
-use crate::arch::vcpu::CURRENT_CONTEXT;
+use crate::arch::vcpu::VmCpuRegisters;
+use crate::arch::hvc::{HVC_SYS, HVC_SYS_BOOT};
 
 pub const HVC_RETURN_REG: usize = 0;
 
@@ -69,13 +70,6 @@ pub fn data_abort_handler(ctx: &mut ContextFrame) {
 }
 
 pub fn hvc_handler(ctx: &mut ContextFrame) {
-    unsafe {
-        ctx.gpr = CURRENT_CONTEXT.gpr;
-        ctx.elr = CURRENT_CONTEXT.elr;
-        ctx.spsr = CURRENT_CONTEXT.spsr;
-        ctx.sp = CURRENT_CONTEXT.sp;
-    }
-
     let x0 = ctx.gpr(0);
     let x1 = ctx.gpr(1);
     let x2 = ctx.gpr(2);
@@ -95,6 +89,15 @@ pub fn hvc_handler(ctx: &mut ContextFrame) {
         Err(_) => {
             warn!("Failed to handle hvc request fid 0x{:x} event 0x{:x}", hvc_type, event);
             ctx.set_gpr(HVC_RETURN_REG, usize::MAX);
+        }
+    }
+    if hvc_type==HVC_SYS && event== HVC_SYS_BOOT {
+        unsafe {
+            let regs: &VmCpuRegisters = core::mem::transmute(x2);   // x2 is the vm regs context
+            ctx.gpr = regs.trap_context_regs.gpr;
+            ctx.sp = regs.trap_context_regs.sp;
+            ctx.elr = regs.trap_context_regs.elr;
+            ctx.spsr = regs.trap_context_regs.spsr;
         }
     }
 }

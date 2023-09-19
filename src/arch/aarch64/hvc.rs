@@ -2,10 +2,12 @@
 use aarch64_cpu::{asm, asm::barrier, registers::*};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 
+use crate::arch::vcpu::VmCpuRegisters;
+
 pub const HVC_SYS: usize = 0;
 
 /// HVC SYS event
-pub const HVC_SYS_SET_EL2: usize = 0;
+pub const HVC_SYS_BOOT: usize = 0;
 
 #[repr(C)]
 pub struct HvcDefaultMsg {
@@ -25,7 +27,7 @@ pub fn hvc_guest_handler(
     x6: usize,
 ) -> Result<usize, ()> {
     match hvc_type {
-        HVC_SYS => hvc_sys_handler(event, x0, x1),
+        HVC_SYS => hvc_sys_handler(event, x0, x1, x2),
         _ => {
             info!("hvc_guest_handler: unknown hvc type {} event {}", hvc_type, event);
             Err(())
@@ -33,10 +35,10 @@ pub fn hvc_guest_handler(
     }
 }
 
-fn hvc_sys_handler(event: usize, x0: usize, x1: usize) -> Result<usize, ()> {
+fn hvc_sys_handler(event: usize, x0: usize, x1: usize, x2:usize) -> Result<usize, ()> {
     match event {
-        HVC_SYS_SET_EL2 => {
-            init_hv(x0, x1);
+        HVC_SYS_BOOT => {
+            init_hv(x0, x1, x2);
             Ok(0)
         }
 
@@ -44,7 +46,11 @@ fn hvc_sys_handler(event: usize, x0: usize, x1: usize) -> Result<usize, ()> {
     }
 }
 
-fn init_hv(x0: usize, x1: usize) {
+/// hvc handler for initial hv
+/// x0: root_paddr, x1: exception vector base, x2: vm regs context addr
+fn init_hv(x0: usize, x1: usize, x2: usize) {
+    let regs: &VmCpuRegisters = unsafe{core::mem::transmute(x2)};
+
     // cptr_el2: Controls trapping to EL2 for accesses to the CPACR, Trace functionality 
     //           and registers associated with floating-point and Advanced SIMD execution.
     // hcr_el2 set to 0x80000019 (do not trap smc?)
