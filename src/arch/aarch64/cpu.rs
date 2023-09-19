@@ -1,7 +1,6 @@
-use alloc::{vec::Vec, collections::VecDeque, sync::Arc};
+use alloc::collections::VecDeque;
 use core::arch::asm;
 
-use page_table::PagingIf;
 use spin::{Mutex, Once};
 
 use percpu_macros::def_percpu;
@@ -19,28 +18,13 @@ pub const CPU_STACK_SIZE: usize = PAGE_SIZE_4K * 128;
 pub const CONTEXT_GPR_NUM: usize = 31;
 pub const PTE_PER_PAGE: usize = 512;
 
-#[derive(Copy, Clone, Debug, Eq)]
-pub enum CpuState {
-    CpuInactive = 0,
-    CpuIdle = 1,
-    CpuRun = 2,
-}
-
-impl PartialEq for CpuState {
-    fn eq(&self, other: &Self) -> bool {
-        *self as usize == *other as usize
-    }
-}
-
 #[repr(C)]
 #[repr(align(4096))]
 pub struct Cpu<H:HyperCraftHal>{   //stack_top_addr has no use yet?
     pub cpu_id: usize,
-    // stack_top_addr: HostVirtAddr,
-    pub active_vcpu: Option<VCpu<H>>,
+    stack_top_addr: HostVirtAddr,
     pub vcpu_queue: Mutex<VecDeque<usize>>,
     pub context_addr: usize,
-    stack_top_addr: HostVirtAddr,
     marker: core::marker::PhantomData<H>,
 }
 
@@ -51,10 +35,9 @@ impl <H: HyperCraftHal> Cpu<H> {
     const fn new(cpu_id: usize, stack_top_addr: HostVirtAddr) -> Self {
         Self {
             cpu_id: cpu_id,
-            active_vcpu: None,
             stack_top_addr: stack_top_addr,
-            context_addr: 0,
             vcpu_queue: Mutex::new(VecDeque::new()),
+            context_addr: 0,
             marker: core::marker::PhantomData,
         }
     }
@@ -90,12 +73,6 @@ impl <H: HyperCraftHal> Cpu<H> {
         Ok(())
     }
 
-    /// Returns a pointer to the `PerCpu` for the given CPU.
-    fn ptr_for_cpu(cpu_id: usize) -> *const Cpu<H> {
-        let pcpu_addr = PER_CPU_BASE.get().unwrap() + cpu_id * core::mem::size_of::<Cpu<H>>();
-        pcpu_addr as *const Cpu<H>
-    }
-
     /// Initializes the TP pointer to point to PerCpu data.
     pub fn setup_this_cpu(cpu_id: usize) -> HyperResult<()> {
         // Load TP with address of pur PerCpu struct.
@@ -126,12 +103,23 @@ impl <H: HyperCraftHal> Cpu<H> {
     /// Create a `Vcpu`, set the entry point to `entry` and bind this vcpu into the current CPU.
     pub fn create_vcpu(&mut self, vcpu_id: usize) -> HyperResult<VCpu<H>> {
         self.vcpu_queue.lock().push_back(vcpu_id);
-        let vcpu = VCpu::new(vcpu_id);
+        let vcpu = VCpu::<H>::new(vcpu_id);
         if self.context_addr == 0 { // set this to the first vcpu
             self.context_addr = vcpu.vcpu_ctx_addr();
         }
         let result = Ok(vcpu);
         result
+    }
+
+    /// Get stack top addr.
+    pub fn stack_top_addr(&self) -> HostVirtAddr {
+        self.stack_top_addr
+    }
+
+    /// Returns a pointer to the `PerCpu` for the given CPU.
+    fn ptr_for_cpu(cpu_id: usize) -> *const Cpu<H> {
+        let pcpu_addr = PER_CPU_BASE.get().unwrap() + cpu_id * core::mem::size_of::<Cpu<H>>();
+        pcpu_addr as *const Cpu<H>
     }
 
     fn boot_cpu_stack() -> HyperResult<GuestPhysAddr> {

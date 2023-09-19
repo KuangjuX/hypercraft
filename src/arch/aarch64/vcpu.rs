@@ -29,49 +29,12 @@ extern "C" {
     fn context_vm_entry(ctx: usize) -> !;
 }
 
-/* 
-#[derive(Clone)]
-pub struct Vcpu<H: HyperCraftHal> {
-    pub inner: Arc<Mutex<VcpuInner<H>>>,
-}
-
-impl <H: HyperCraftHal>Vcpu<H> {
-    pub fn new(id:usize, phys_id: usize) -> Self {
-        Vcpu {
-            inner: Arc::new(Mutex::new(VcpuInner::new(id))),
-        }
-    }
-
-    pub fn id(&self) -> usize {
-        let inner = self.inner.lock();
-        inner.vcpu_id
-    }
-
-    pub fn vcpu_ctx_addr(&self) -> usize {
-        let inner = self.inner.lock();
-        inner.vcpu_ctx_addr()
-    }
-
-    pub fn set_elr(&self, elr: usize) {
-        let mut inner = self.inner.lock();
-        inner.set_elr(elr);
-    }
-
-    pub fn elr(&self) -> usize {
-        let inner = self.inner.lock();
-        inner.vcpu_ctx.exception_pc()
-    }
-
-    pub fn set_gpr(&self, idx: usize, val: usize) {
-        let mut inner = self.inner.lock();
-        inner.set_gpr(idx, val);
-    }
-
-    pub fn run(&self) -> ! {
-        todo!()
-    }
-}
-*/
+pub static mut CURRENT_CONTEXT: ContextFrame = ContextFrame {
+                                                    gpr: [0; 31],
+                                                    sp: 0,
+                                                    elr: 0,
+                                                    spsr: 0,
+                                                };
 
 #[repr(C)]
 #[derive(Clone, Debug)]
@@ -116,6 +79,12 @@ impl <H:HyperCraftHal> VCpu<H> {
     pub fn init(&self, kernel_entry_point: usize, device_tree_ipa: usize) {
         self.vcpu_arch_init(kernel_entry_point, device_tree_ipa);
         self.init_vm_context();
+        unsafe {
+            CURRENT_CONTEXT.gpr = self.regs.trap_context_regs.gpr;
+            CURRENT_CONTEXT.sp = self.regs.trap_context_regs.sp;
+            CURRENT_CONTEXT.elr = self.regs.trap_context_regs.elr;
+            CURRENT_CONTEXT.spsr = self.regs.trap_context_regs.spsr;
+        }
     }
 
 
@@ -170,7 +139,7 @@ impl <H:HyperCraftHal> VCpu<H> {
         vmpidr |= 1 << 31;
         vmpidr |= self.vcpu_id;
         self.regs.vm_system_regs.vmpidr_el2 = vmpidr as u64;
-
+        
         // self.gic_ctx_reset(); // because of passthrough gic, do not need gic context anymore?
     }
 

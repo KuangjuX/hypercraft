@@ -12,6 +12,7 @@ use crate::arch::exception::*;
 use crate::arch::hvc::hvc_guest_handler;
 use crate::arch::ContextFrame;
 use crate::traits::ContextFrameTrait;
+use crate::arch::vcpu::CURRENT_CONTEXT;
 
 pub const HVC_RETURN_REG: usize = 0;
 
@@ -68,6 +69,13 @@ pub fn data_abort_handler(ctx: &mut ContextFrame) {
 }
 
 pub fn hvc_handler(ctx: &mut ContextFrame) {
+    unsafe {
+        ctx.gpr = CURRENT_CONTEXT.gpr;
+        ctx.elr = CURRENT_CONTEXT.elr;
+        ctx.spsr = CURRENT_CONTEXT.spsr;
+        ctx.sp = CURRENT_CONTEXT.sp;
+    }
+
     let x0 = ctx.gpr(0);
     let x1 = ctx.gpr(1);
     let x2 = ctx.gpr(2);

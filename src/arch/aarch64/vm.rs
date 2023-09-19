@@ -1,5 +1,5 @@
 use crate::{HyperCraftHal, GuestPageTableTrait, VmCpus, HyperResult};
-use crate::arch::cpu::current_cpu;
+use crate::arch::cpu::Cpu;
 
 
 #[repr(align(4096))]

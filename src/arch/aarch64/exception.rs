@@ -165,6 +165,7 @@ pub fn exception_data_abort_access_is_sign_ext() -> bool {
 extern "C" fn lower_aarch64_synchronous(ctx: &mut ContextFrame) {
     info!("lower_aarch64_synchronous");
     // current_cpu().set_context_addr(ctx);
+
     match exception_class() {
         0x24 => {
             // info!("Core[{}] data_abort_handler", cpu_id());

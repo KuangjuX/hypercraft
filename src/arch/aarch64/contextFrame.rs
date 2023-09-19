@@ -324,7 +324,6 @@ impl VmContext {
     pub fn ext_regs_restore(&self) {
         // println!("restore CNTV_CTL_EL0 {:x}", self.cntv_ctl_el0);
         // println!("restore CNTV_CVAL_EL0 {:x}", self.cntv_cval_el0);
-        msr!(CNTVOFF_EL2, self.cntvoff_el2);
         // MSR!(CNTP_CVAL_EL0, self.cntp_cval_el0);
         msr!(CNTV_CVAL_EL0, self.cntv_cval_el0);
         msr!(CNTKCTL_EL1, self.cntkctl_el1, "x");
@@ -332,9 +331,6 @@ impl VmContext {
         msr!(CNTV_CTL_EL0, self.cntv_ctl_el0, "x");
         // MSR!(CNTP_TVAL_EL0, {0:x}", in(reg) self.cntp_tval_el0, "x");
         // MSR!(CNTV_TVAL_EL0, {0:x}", in(reg) self.cntv_tval_el0, "x");
-
-        // MSR!(VPIDR_EL2, self.vpidr_el2, "x");
-        msr!(VMPIDR_EL2, self.vmpidr_el2);
 
         msr!(SP_EL0, self.sp_el0);
         msr!(SP_EL1, self.sp_el1);
@@ -357,13 +353,17 @@ impl VmContext {
         msr!(TPIDRRO_EL0, self.tpidrro_el0);
 
         msr!(PMCR_EL0, self.pmcr_el0);
-        msr!(VTCR_EL2, self.vtcr_el2);
-        msr!(HCR_EL2, self.hcr_el2);
         // MSR!(CPTR_EL2, self.cptr_el2);
         // MSR!(HSTR_EL2, self.hstr_el2);
         // MSR!(FAR_EL2, self.far_el2);
         // MSR!(HPFAR_EL2, self.hpfar_el2);
         msr!(ACTLR_EL1, self.actlr_el1);
+
+        msr!(VTCR_EL2, self.vtcr_el2);
+        msr!(HCR_EL2, self.hcr_el2);
+        // MSR!(VPIDR_EL2, self.vpidr_el2, "x");
+        msr!(VMPIDR_EL2, self.vmpidr_el2);
+        msr!(CNTVOFF_EL2, self.cntvoff_el2);
     }
 
     pub fn fpsimd_save_context(&self) {
