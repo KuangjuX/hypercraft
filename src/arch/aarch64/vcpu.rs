@@ -33,14 +33,16 @@ extern "C" {
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct VmCpuRegisters {
-    pub trap_context_regs: ContextFrame,
+    pub guest_trap_context_regs: ContextFrame,
+    pub save_for_os_context_regs: ContextFrame,
     pub vm_system_regs: VmContext,
 }
 
 impl VmCpuRegisters {
     pub fn default() -> VmCpuRegisters {
         VmCpuRegisters {
-            trap_context_regs: ContextFrame::default(),
+            guest_trap_context_regs: ContextFrame::default(),
+            save_for_os_context_regs: ContextFrame::default(),
             vm_system_regs: VmContext::default(),
         }
     }
@@ -89,16 +91,21 @@ impl <H:HyperCraftHal> VCpu<H> {
     pub fn vcpu_ctx_addr(&self) -> usize {
         &(self.regs) as *const _ as usize
     }
-    pub fn vcpu_trap_ctx_addr(&self) -> usize {
-        &(self.regs.trap_context_regs) as *const _ as usize
+    
+    pub fn vcpu_trap_ctx_addr(&self, if_guest: bool) -> usize {
+        if if_guest {
+            &(self.regs.guest_trap_context_regs) as *const _ as usize
+        }else {
+            &(self.regs.save_for_os_context_regs) as *const _ as usize
+        }
     }
 
     pub fn set_elr(&mut self, elr: usize) {
-        self.regs.trap_context_regs.set_exception_pc(elr);
+        self.regs.guest_trap_context_regs.set_exception_pc(elr);
     }
 
     pub fn set_gpr(&mut self, idx: usize, val: usize) {
-        self.regs.trap_context_regs.set_gpr(idx, val);
+        self.regs.guest_trap_context_regs.set_gpr(idx, val);
     }
 
     fn init_vm_context(&mut self) {
@@ -119,7 +126,7 @@ impl <H:HyperCraftHal> VCpu<H> {
     fn vcpu_arch_init(&mut self, kernel_entry_point: usize, device_tree_ipa: usize) {
         self.set_gpr(0, device_tree_ipa);
         self.set_elr(kernel_entry_point);
-        self.regs.trap_context_regs.spsr =( SPSR_EL1::M::EL1h + 
+        self.regs.guest_trap_context_regs.spsr =( SPSR_EL1::M::EL1h + 
                                             SPSR_EL1::I::Masked + 
                                             SPSR_EL1::F::Masked + 
                                             SPSR_EL1::A::Masked + 

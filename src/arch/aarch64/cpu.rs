@@ -24,7 +24,6 @@ pub struct PerCpu<H:HyperCraftHal>{   //stack_top_addr has no use yet?
     pub cpu_id: usize,
     stack_top_addr: HostVirtAddr,
     pub vcpu_queue: Mutex<VecDeque<usize>>,
-    pub context_addr: usize,
     marker: core::marker::PhantomData<H>,
 }
 
@@ -37,7 +36,6 @@ impl <H: HyperCraftHal> PerCpu<H> {
             cpu_id: cpu_id,
             stack_top_addr: stack_top_addr,
             vcpu_queue: Mutex::new(VecDeque::new()),
-            context_addr: 0,
             marker: core::marker::PhantomData,
         }
     }
@@ -104,9 +102,6 @@ impl <H: HyperCraftHal> PerCpu<H> {
     pub fn create_vcpu(&mut self, vcpu_id: usize) -> HyperResult<VCpu<H>> {
         self.vcpu_queue.lock().push_back(vcpu_id);
         let vcpu = VCpu::<H>::new(vcpu_id);
-        if self.context_addr == 0 { // set this to the first vcpu
-            self.context_addr = vcpu.vcpu_trap_ctx_addr();
-        }
         let result = Ok(vcpu);
         result
     }
