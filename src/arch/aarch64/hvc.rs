@@ -3,6 +3,7 @@ use aarch64_cpu::{asm, asm::barrier, registers::*};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 
 use crate::arch::vcpu::VmCpuRegisters;
+use crate::msr;
 
 pub const HVC_SYS: usize = 0;
 
@@ -54,45 +55,60 @@ fn hvc_sys_handler(event: usize, x0: usize, x1: usize) -> Result<usize, ()> {
 /// hvc handler for initial hv
 /// x0: root_paddr, x1: vm regs context addr
 fn init_hv(x0: usize, x1: usize) {
-    let regs: &VmCpuRegisters = unsafe{core::mem::transmute(x1)};
+    // cptr_el2: Condtrols trapping to EL2 for accesses to the CPACR, Trace functionality 
+    //           an registers associated with floating-point and Advanced SIMD execution.
 
-    // set vm system related register
-    regs.vm_system_regs.ext_regs_restore();
-    // cptr_el2: Controls trapping to EL2 for accesses to the CPACR, Trace functionality 
-    //           and registers associated with floating-point and Advanced SIMD execution.
-    // hcr_el2 set to 0x80000019 (do not trap smc?)
-    // hcr_el2[31]: Register width control for lower Exception levels. 
-    //             1 value: EL1 is AArch64. EL0 is determined by the register width 
-    //             described in the current processing state when executing at EL0.
-    // hcr_el2[4]: Physical IRQ routing.
-    //             1 value: Physical IRQ while executing at EL2 or lower are taken 
-    //             in EL2 unless routed by SCTLR_EL3.IRQ bit to EL3. Virtual IRQ interrupt is enabled.
-    // hcr_el2[3]: Physical FIQ routing.
-    //             1 value: Physical FIQ while executing at EL2 or lower are taken 
-    //             in EL2 unless routed by SCTLR_EL3.FIQ bit to EL3. Virtual FIQ interrupt is enabled.
-    // hcr_el2[0]: Enables second stage of translation.
-    //             1 value: Enables second stage translation for execution in EL1 and EL0.
+    // ldr x2, =(0x30c51835)  // do not set sctlr_el2 as this value, some fields have no use.
 
-    // x1 contains exception vector base, remove this line and set this when system boot?
-    // msr vbar_el2, x1      
     core::arch::asm!("
         mov x3, xzr           // Trap nothing from EL1 to El2.
         msr cptr_el2, x3
 
-        msr vttbr_el2, x0     // x0 contains vttbr token
-
-        mov x2, 1
-        msr spsel, x2         // Use SP_ELx for Exception level ELx.
-
-        ldr x2, =(0x30c51835)  // Set system control register for EL2.
-        msr sctlr_el2, x2
+        bl {init_page_table}  // init vtcr_el2 and vttbr_el2. x0 is vttbr value
+        bl {init_sysregs}
 
         tlbi	alle2         // Flush tlb
 	    dsb	nsh
-	    isb
-    ")
+	    isb",
+        init_sysregs = sym init_sysregs,
+        init_page_table = sym init_page_table,
+    );
+
+    let regs: &VmCpuRegisters = unsafe{core::mem::transmute(x1)};
+    // set vm system related register
+    regs.vm_system_regs.ext_regs_restore();
 }
 
+fn init_sysregs() {
+    use aarch64_cpu::{
+        asm::barrier,
+        registers::{HCR_EL2, SCTLR_EL2},
+    };
+    HCR_EL2.write(    
+        HCR_EL2::VM::Enable
+            + HCR_EL2::RW::EL1IsAarch64,
+    );  // Make irq and fiq do not route to el2
+    SCTLR_EL2.modify(SCTLR_EL2::EIS::IsSynch + SCTLR_EL2::M::Enable 
+                    + SCTLR_EL2::C::Cacheable 
+                    + SCTLR_EL2::I::Cacheable); // other fields need? EIS, EOS?
+    barrier::isb(barrier::SY);
+}
+
+fn init_page_table(vttbr: usize) {
+    use aarch64_cpu::registers::{VTCR_EL2, VTTBR_EL2};
+    VTCR_EL2.write(
+        VTCR_EL2::PS::PA_36B_64GB   //0b001 36 bits, 64GB.
+            + VTCR_EL2::TG0::Granule4KB
+            + VTCR_EL2::SH0::Inner
+            + VTCR_EL2::ORGN0::NormalWBRAWA
+            + VTCR_EL2::IRGN0::NormalWBRAWA
+            + VTCR_EL2::SL0.val(0b01)
+            + VTCR_EL2::T0SZ.val(64 - 36),
+    );
+    msr!(VTTBR_EL2, vttbr);
+}
+
+/* 
 // really need init MAIR_EL2 and TCR_EL2 ??
 // MAIR_EL2: Provides the memory attribute encodings corresponding to the possible 
 //           AttrIndx values in a Long-descriptor format translation table entry for 
@@ -100,7 +116,6 @@ fn init_hv(x0: usize, x1: usize) {
 // TCR_EL2: When the Effective value of HCR_EL2.E2H is 0, this register controls stage 1 
 //          of the EL2 translation regime, that supports a single VA range, translated 
 //          using TTBR0_EL2.
-/* 
 unsafe fn init_hv_mmu(token: usize) {
     MAIR_EL2.write(
         MAIR_EL2::Attr0_Device::nonGathering_nonReordering_noEarlyWriteAck

@@ -7,8 +7,8 @@ pub struct A64HVPagingMetaData;
 
 impl PagingMetaData for A64HVPagingMetaData {
     const LEVELS: usize = 3;
-    const PA_MAX_BITS: usize = 48;
-    const VA_MAX_BITS: usize = 48;
+    const PA_MAX_BITS: usize = 36;  // right?
+    const VA_MAX_BITS: usize = 39;
 }
 /// According to rust shyper, AArch64 translation table.
 pub type A64HVPageTable<I> = PageTable64<A64HVPagingMetaData, A64PTE, I>;
