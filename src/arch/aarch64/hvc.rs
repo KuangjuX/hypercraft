@@ -88,7 +88,7 @@ fn init_sysregs() {
         HCR_EL2::VM::Enable
             + HCR_EL2::RW::EL1IsAarch64,
     );  // Make irq and fiq do not route to el2
-    SCTLR_EL2.modify(SCTLR_EL2::EIS::IsSynch + SCTLR_EL2::M::Enable 
+    SCTLR_EL2.modify(SCTLR_EL2::M::Enable 
                     + SCTLR_EL2::C::Cacheable 
                     + SCTLR_EL2::I::Cacheable); // other fields need? EIS, EOS?
     barrier::isb(barrier::SY);
