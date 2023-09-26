@@ -1,8 +1,12 @@
+#[cfg(target_arch = "riscv64")]
+use crate::{GprIndex, VmExitInfo,};
+
+use crate::arch::VCpu;
 use crate::{
-    GprIndex, GuestPageTableTrait, GuestPhysAddr, HyperCraftHal, HyperResult, VCpu, VmCpus,
-    VmExitInfo,
+    GuestPageTableTrait, GuestPhysAddr, HyperCraftHal, HyperResult, VmCpus,
 };
 
+#[cfg(target_arch = "riscv64")]
 /// Trait for VCpu struct.
 pub trait VCpuTrait {
     /// Create a new vCPU
@@ -61,7 +65,6 @@ pub trait VmExitInfoTrait {
 
 pub trait ContextFrameTrait {
     fn new(pc: usize, sp: usize, arg: usize) -> Self;
-
     fn exception_pc(&self) -> usize;
     fn set_exception_pc(&mut self, pc: usize);
     fn stack_pointer(&self) -> usize;

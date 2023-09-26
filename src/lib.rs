@@ -19,17 +19,16 @@ extern crate log;
 #[macro_use]
 extern crate alloc;
 
-// #[cfg(target_arch = "aarch64")]
+#[cfg(target_arch = "aarch64")]
 #[path = "arch/aarch64/mod.rs"]
 mod arch;
-/* 
 #[cfg(target_arch = "riscv64")]
 #[path = "arch/riscv/mod.rs"]
 mod arch;
 #[cfg(target_arch = "x86_64")]
 #[path = "arch/dummy.rs"]
 mod arch;
-*/
+
 mod hal;
 mod memory;
 mod traits;
@@ -38,15 +37,14 @@ mod vcpus;
 /// HyperCraft Result Define.
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
-/* 
+
 #[cfg(target_arch = "riscv64")]
 pub use arch::{
-    init_hv_runtime, GprIndex, HyperCallMsg, NestedPageTable, PerCpu, VCpu, VmExitInfo, VM,
+    init_hv_runtime, GprIndex, HyperCallMsg, VmExitInfo,
 };
-*/
-// #[cfg(target_arch = "aarch64")]
+
 pub use arch::{
-    A64HVPageTable, VCpu, VM,
+    NestedPageTable, PerCpu, VCpu, VM,
 };
 
 pub use hal::HyperCraftHal;

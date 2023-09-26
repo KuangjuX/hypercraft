@@ -10,8 +10,8 @@ mod vm;
 mod gic;
 mod ept;
 
-pub use gic::{GICC, GICD, GICH, GICD_BASE};
-pub use ept::A64HVPageTable;
+// pub use gic::{GICC, GICD, GICH, GICD_BASE};
+pub use ept::NestedPageTable;
 pub use vcpu::VCpu;
 pub use vm::VM;
 pub use cpu::PerCpu;
