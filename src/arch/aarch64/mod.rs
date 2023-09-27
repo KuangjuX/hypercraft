@@ -1,4 +1,4 @@
-mod contextFrame;
+mod context_frame;
 mod cpu;
 mod exception;
 mod emu;
@@ -20,10 +20,10 @@ pub use cpu::PerCpu;
 
 pub use page_table::PageSize;
 
-type ContextFrame = crate::arch::contextFrame::Aarch64ContextFrame;
+type ContextFrame = crate::arch::context_frame::Aarch64ContextFrame;
 
-// Move to ARM register from system coprocessor register.
-// MRS Xd, sysreg "Xd = sysreg"
+/// Move to ARM register from system coprocessor register.
+/// MRS Xd, sysreg "Xd = sysreg"
 #[macro_export]
 macro_rules! mrs {
     ($val: expr, $reg: expr, $asm_width:tt) => {
@@ -38,8 +38,8 @@ macro_rules! mrs {
     };
 }
 
-// Move to system coprocessor register from ARM register.
-// MSR sysreg, Xn "sysreg = Xn"
+/// Move to system coprocessor register from ARM register.
+/// MSR sysreg, Xn "sysreg = Xn"
 #[macro_export]
 macro_rules! msr {
     ($reg: expr, $val: expr, $asm_width:tt) => {

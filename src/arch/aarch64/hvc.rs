@@ -21,11 +21,11 @@ pub fn hvc_guest_handler(
     event: usize,
     x0: usize,
     x1: usize,
-    x2: usize,
-    x3: usize,
-    x4: usize,
-    x5: usize,
-    x6: usize,
+    _x2: usize,
+    _x3: usize,
+    _x4: usize,
+    _x5: usize,
+    _x6: usize,
 ) -> Result<usize, ()> {
     match hvc_type {
         HVC_SYS => hvc_sys_handler(event, x0, x1),
@@ -54,27 +54,29 @@ fn hvc_sys_handler(event: usize, x0: usize, x1: usize) -> Result<usize, ()> {
 
 /// hvc handler for initial hv
 /// x0: root_paddr, x1: vm regs context addr
-fn init_hv(x0: usize, x1: usize) {
+fn init_hv(_x0: usize, _x1: usize) {
     // cptr_el2: Condtrols trapping to EL2 for accesses to the CPACR, Trace functionality 
     //           an registers associated with floating-point and Advanced SIMD execution.
 
     // ldr x2, =(0x30c51835)  // do not set sctlr_el2 as this value, some fields have no use.
 
-    core::arch::asm!("
-        mov x3, xzr           // Trap nothing from EL1 to El2.
-        msr cptr_el2, x3
+    unsafe {
+        core::arch::asm!("
+            mov x3, xzr           // Trap nothing from EL1 to El2.
+            msr cptr_el2, x3
 
-        bl {init_page_table}  // init vtcr_el2 and vttbr_el2. x0 is vttbr value
-        bl {init_sysregs}
+            bl {init_page_table}  // init vtcr_el2 and vttbr_el2. x0 is vttbr value
+            bl {init_sysregs}
 
-        tlbi	alle2         // Flush tlb
-	    dsb	nsh
-	    isb",
-        init_sysregs = sym init_sysregs,
-        init_page_table = sym init_page_table,
-    );
+            tlbi	alle2         // Flush tlb
+    	    dsb	nsh
+	        isb",
+            init_sysregs = sym init_sysregs,
+            init_page_table = sym init_page_table,
+        );
+    }
 
-    let regs: &VmCpuRegisters = unsafe{core::mem::transmute(x1)};
+    let regs: &VmCpuRegisters = unsafe{core::mem::transmute(_x1)};
     // set vm system related register
     regs.vm_system_regs.ext_regs_restore();
 }

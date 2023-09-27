@@ -93,7 +93,7 @@ pub fn hvc_handler(ctx: &mut ContextFrame) {
     }
     if hvc_type==HVC_SYS && event== HVC_SYS_BOOT {
         unsafe {
-            let regs: &VmCpuRegisters = core::mem::transmute(x1);   // x1 is the vm regs context
+            let regs: &mut VmCpuRegisters = core::mem::transmute(x1);   // x1 is the vm regs context
             // save arceos context
             regs.save_for_os_context_regs.gpr = ctx.gpr;
             regs.save_for_os_context_regs.sp = ctx.sp;

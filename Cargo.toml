@@ -14,10 +14,7 @@ arrayvec = { version = "0.7.2", default-features = false }
 spin = { version = "0.9", features = ["once", "rwlock", "spin_mutex"] }
 tock-registers = "0.8.1"
 
-fdt = {version = "0.1.5"}
-
 cortex-a = "8.1.1"
-lazy_static = "1.4"
 aarch64-cpu = "9.3"
 
 # arceos crates

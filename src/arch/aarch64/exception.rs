@@ -175,7 +175,7 @@ extern "C" fn lower_aarch64_synchronous(ctx: &mut ContextFrame) {
             hvc_handler(ctx);
         }
         // 0x18 todo？
-        _ => unsafe {   
+        _ => {   
             panic!(
                 "handler not presents for EC_{} @ipa 0x{:x}, @pc 0x{:x}",
                 exception_class(),

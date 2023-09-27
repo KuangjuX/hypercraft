@@ -18,11 +18,15 @@ pub const CPU_STACK_SIZE: usize = PAGE_SIZE_4K * 128;
 pub const CONTEXT_GPR_NUM: usize = 31;
 pub const PTE_PER_PAGE: usize = 512;
 
+/// Per-CPU data. A pointer to this struct is loaded into TP when a CPU starts. This structure
+/// sits at the top of a secondary CPU's stack.
 #[repr(C)]
 #[repr(align(4096))]
 pub struct PerCpu<H:HyperCraftHal>{   //stack_top_addr has no use yet?
+    /// per cpu id
     pub cpu_id: usize,
     stack_top_addr: HostVirtAddr,
+    /// save for correspond vcpus
     pub vcpu_queue: Mutex<VecDeque<usize>>,
     marker: core::marker::PhantomData<H>,
 }
@@ -40,6 +44,8 @@ impl <H: HyperCraftHal> PerCpu<H> {
         }
     }
 
+    /// Initializes the `PerCpu` structures for each CPU. This (the boot CPU's) per-CPU
+    /// area is initialized and loaded into TPIDR_EL1 as well.
     pub fn init(boot_id: usize, stack_size: usize) -> HyperResult<()> {
         let cpu_nums: usize = 1;
         let pcpu_size = core::mem::size_of::<PerCpu<H>>() * cpu_nums;
