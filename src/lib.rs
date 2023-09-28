@@ -54,6 +54,8 @@ pub use memory::{
 };
 pub use vcpus::VmCpus;
 
+#[cfg(target_arch = "aarch64")]
+pub use arch::lower_aarch64_synchronous;
 
 /// The error type for hypervisor operation failures.
 #[derive(Debug, PartialEq)]

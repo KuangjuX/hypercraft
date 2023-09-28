@@ -19,6 +19,7 @@ pub use cpu::PerCpu;
 // pub use config::*;
 
 pub use page_table::PageSize;
+pub use exception::lower_aarch64_synchronous;
 
 type ContextFrame = crate::arch::context_frame::Aarch64ContextFrame;
 
