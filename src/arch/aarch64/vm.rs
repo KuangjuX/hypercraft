@@ -32,6 +32,7 @@ impl <H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
     pub fn run(&mut self, vcpu_id: usize) {
         let vcpu = self.vcpus.get_vcpu(vcpu_id).unwrap();
         let vttbr_token = (self.vm_id << 48) | self.gpt.token();
+        debug!("vttbr_token: 0x{:X}", self.gpt.token());
         vcpu.run(vttbr_token);
     }
 }
