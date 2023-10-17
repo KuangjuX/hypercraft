@@ -35,12 +35,16 @@ extern "C" {
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct VmCpuRegisters {
+    /// guest trap context
     pub guest_trap_context_regs: ContextFrame,
+    /// arceos context
     pub save_for_os_context_regs: ContextFrame,
+    /// virtual machine system regs setting
     pub vm_system_regs: VmContext,
 }
 
 impl VmCpuRegisters {
+    /// create a default VmCpuRegisters
     pub fn default() -> VmCpuRegisters {
         VmCpuRegisters {
             guest_trap_context_regs: ContextFrame::default(),

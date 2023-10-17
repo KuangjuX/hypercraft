@@ -3,8 +3,6 @@ use core::arch::asm;
 
 use spin::{Mutex, Once};
 
-use percpu_macros::def_percpu;
-
 use crate::{HyperCraftHal, HyperResult, HyperError, HostPhysAddr, HostVirtAddr, GuestPhysAddr};
 use crate::arch::vcpu::VCpu;
 use crate::arch::ContextFrame;
