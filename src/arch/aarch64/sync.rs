@@ -69,6 +69,7 @@ pub fn data_abort_handler(ctx: &mut ContextFrame) {
     ctx.set_exception_pc(val);
 }
 
+#[inline(never)]
 pub fn hvc_handler(ctx: &mut ContextFrame) {
     let x0 = ctx.gpr(0);
     let x1 = ctx.gpr(1);

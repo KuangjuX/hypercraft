@@ -178,11 +178,13 @@ pub extern "C" fn lower_aarch64_synchronous(ctx: &mut ContextFrame) {
         // 0x18 todo？
         _ => {   
             panic!(
-                "handler not presents for EC_{} @ipa 0x{:x}, @pc 0x{:x}, @esr 0x{:x}",
+                "handler not presents for EC_{} @ipa 0x{:x}, @pc 0x{:x}, @esr 0x{:x}, @sctlr_el1 0x{:x}, @vttbr_el2 0x{:x}, ",
                 exception_class(),
                 exception_fault_addr(),
                 (*ctx).exception_pc(),
                 exception_esr(),
+                cortex_a::registers::SCTLR_EL1.get() as usize,
+                cortex_a::registers::VTTBR_EL2.get() as usize,
             );
         },
     }

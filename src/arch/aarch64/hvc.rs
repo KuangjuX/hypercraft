@@ -16,6 +16,7 @@ pub struct HvcDefaultMsg {
     pub event: usize,
 }
 
+#[inline(never)]
 pub fn hvc_guest_handler(
     hvc_type: usize,
     event: usize,
@@ -41,10 +42,11 @@ pub fn run_guest_by_trap2el2(token: usize, regs_addr: usize) -> usize {
     hvc_call(token, regs_addr, 0, 0, 0, 0, 0, 0)
 }
 
-fn hvc_sys_handler(event: usize, x0: usize, x1: usize) -> Result<usize, ()> {
+#[inline(never)]
+fn hvc_sys_handler(event: usize, root_paddr: usize, vm_ctx_addr: usize) -> Result<usize, ()> {
     match event {
         HVC_SYS_BOOT => {
-            init_hv(x0, x1);
+            init_hv(root_paddr, vm_ctx_addr);
             Ok(0)
         }
 
@@ -52,31 +54,29 @@ fn hvc_sys_handler(event: usize, x0: usize, x1: usize) -> Result<usize, ()> {
     }
 }
 
+#[inline(never)]
 /// hvc handler for initial hv
 /// x0: root_paddr, x1: vm regs context addr
-fn init_hv(_x0: usize, _x1: usize) {
+fn init_hv(root_paddr: usize, vm_ctx_addr: usize) {
     // cptr_el2: Condtrols trapping to EL2 for accesses to the CPACR, Trace functionality 
     //           an registers associated with floating-point and Advanced SIMD execution.
 
     // ldr x2, =(0x30c51835)  // do not set sctlr_el2 as this value, some fields have no use.
-
     unsafe {
         core::arch::asm!("
             mov x3, xzr           // Trap nothing from EL1 to El2.
-            msr cptr_el2, x3
-
-            bl {init_page_table}  // init vtcr_el2 and vttbr_el2. x0 is vttbr value
-            bl {init_sysregs}
-
+            msr cptr_el2, x3"
+        );
+        init_page_table(root_paddr);
+        init_sysregs();
+        core::arch::asm!("
             tlbi	alle2         // Flush tlb
-    	    dsb	nsh
-	        isb",
-            init_sysregs = sym init_sysregs,
-            init_page_table = sym init_page_table,
+            dsb	nsh
+            isb"
         );
     }
-
-    let regs: &VmCpuRegisters = unsafe{core::mem::transmute(_x1)};
+    
+    let regs: &VmCpuRegisters = unsafe{core::mem::transmute(vm_ctx_addr)};
     // set vm system related register
     regs.vm_system_regs.ext_regs_restore();
 }
