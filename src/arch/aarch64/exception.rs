@@ -178,10 +178,11 @@ pub extern "C" fn lower_aarch64_synchronous(ctx: &mut ContextFrame) {
         // 0x18 todo？
         _ => {   
             panic!(
-                "handler not presents for EC_{} @ipa 0x{:x}, @pc 0x{:x}",
+                "handler not presents for EC_{} @ipa 0x{:x}, @pc 0x{:x}, @esr 0x{:x}",
                 exception_class(),
                 exception_fault_addr(),
-                (*ctx).exception_pc()
+                (*ctx).exception_pc(),
+                exception_esr(),
             );
         },
     }
