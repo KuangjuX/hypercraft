@@ -41,8 +41,8 @@ pub fn data_abort_handler(ctx: &mut ContextFrame) {
     if !exception_data_abort_is_translate_fault() {
         // No migrate need
         panic!(
-            "Data abort is not translate fault 0x{:x}",
-            exception_fault_addr(),
+            "Data abort is not translate fault 0x{:x}\n ctx: {}",
+            exception_fault_addr(), ctx
         );           
     }
     /* 
