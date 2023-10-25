@@ -7,13 +7,6 @@ use cortex_a::registers::*;
 use crate::{msr, mrs};
 use crate::arch::gic::GicState;
 
-global_asm!(include_str!("fpsimd.S"));
-
-extern "C" {
-    pub fn fpsimd_save_ctx(fpsimd_addr: usize);
-    pub fn fpsimd_restore_ctx(fpsimd_addr: usize);
-}
-
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct Aarch64ContextFrame {
@@ -102,34 +95,6 @@ impl Aarch64ContextFrame {
 
 #[repr(C)]
 #[repr(align(16))]
-#[derive(Copy, Clone, Debug)]
-pub struct VmCtxFpsimd {
-    fpsimd: [u64; 64],
-    fpsr: u32,
-    fpcr: u32,
-}
-
-impl VmCtxFpsimd {
-    pub fn default() -> VmCtxFpsimd {
-        VmCtxFpsimd {
-            fpsimd: [0; 64],
-            fpsr: 0,
-            fpcr: 0,
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.fpsr = 0;
-        self.fpcr = 0;
-        self.fpsimd.iter_mut().for_each(|x| *x = 0);
-    }
-}
-
-
-
-
-#[repr(C)]
-#[repr(align(16))]
 #[derive(Debug, Clone)]
 pub struct VmContext {
     // generic timer
@@ -179,7 +144,6 @@ pub struct VmContext {
     // exception
     far_el2: u64,
     hpfar_el2: u64,
-    fpsimd: VmCtxFpsimd,
     pub gic_state: GicState,
 }
 
@@ -233,7 +197,6 @@ impl VmContext {
             vtcr_el2: 0,
             far_el2: 0,
             hpfar_el2: 0,
-            fpsimd: VmCtxFpsimd::default(),
             gic_state: GicState::default(),
         }
     }
@@ -274,7 +237,6 @@ impl VmContext {
         self.hstr_el2 = 0;
         self.far_el2 = 0;
         self.hpfar_el2 = 0;
-        self.fpsimd.reset();
     }
 
     pub fn ext_regs_store(&mut self) {
@@ -364,18 +326,6 @@ impl VmContext {
         // MSR!(VPIDR_EL2, self.vpidr_el2, "x");
         msr!(VMPIDR_EL2, self.vmpidr_el2);
         msr!(CNTVOFF_EL2, self.cntvoff_el2);
-    }
-
-    pub fn fpsimd_save_context(&self) {
-        unsafe {
-            fpsimd_save_ctx(&self.fpsimd as *const _ as usize);
-        }
-    }
-
-    pub fn fpsimd_restore_context(&self) {
-        unsafe {
-            fpsimd_restore_ctx(&self.fpsimd as *const _ as usize);
-        }
     }
 
     pub fn gic_save_state(&mut self) {

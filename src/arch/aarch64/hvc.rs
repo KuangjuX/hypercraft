@@ -67,9 +67,11 @@ fn init_hv(root_paddr: usize, vm_ctx_addr: usize) {
             mov x3, xzr           // Trap nothing from EL1 to El2.
             msr cptr_el2, x3"
         );
+    }
         // init_page_table(root_paddr);
-        msr!(VTTBR_EL2, root_paddr);
+    msr!(VTTBR_EL2, root_paddr);
         // init_sysregs();
+    unsafe {
         core::arch::asm!("
             tlbi	alle2         // Flush tlb
             dsb	nsh

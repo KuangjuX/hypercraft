@@ -1,7 +1,6 @@
 mod context_frame;
 mod cpu;
 mod exception;
-mod emu;
 mod hvc;
 mod sync;
 mod utils;

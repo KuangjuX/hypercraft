@@ -25,11 +25,6 @@ use crate::traits::ContextFrameTrait;
 use crate::HyperCraftHal;
 use crate::arch::hvc::run_guest_by_trap2el2;
 
-global_asm!(include_str!("guest.S"));
-extern "C" {
-    fn context_vm_entry(ctx: usize) -> !;
-}
-
 /// (v)CPU register state that must be saved or restored when entering/exiting a VM or switching
 /// between VMs.
 #[repr(C)]
@@ -131,16 +126,16 @@ impl <H:HyperCraftHal> VCpu<H> {
         self.regs.vm_system_regs.cntkctl_el1 = 0;
         self.regs.vm_system_regs.pmcr_el0 = 0;
         // self.regs.vm_system_regs.vtcr_el2 = 0x8001355c;
-        self.regs.vm_system_regs.vtcr_el2 = VTCR_EL2::PS::PA_36B_64GB   //0b001 36 bits, 64GB.
+        self.regs.vm_system_regs.vtcr_el2 = (VTCR_EL2::PS::PA_36B_64GB   //0b001 36 bits, 64GB.
                                           + VTCR_EL2::TG0::Granule4KB
                                           + VTCR_EL2::SH0::Inner
                                           + VTCR_EL2::ORGN0::NormalWBRAWA
                                           + VTCR_EL2::IRGN0::NormalWBRAWA
                                           + VTCR_EL2::SL0.val(0b01)
-                                          + VTCR_EL2::T0SZ.val(64 - 36);
+                                          + VTCR_EL2::T0SZ.val(64 - 36)).into();
         //self.regs.vm_system_regs.hcr_el2 = 0x80000001;  // Maybe we do not need smc setting? passthrough gic.
-        self.regs.vm_system_regs.hcr_el2 = HCR_EL2::VM::Enable
-                                         + HCR_EL2::RW::EL1IsAarch64;
+        self.regs.vm_system_regs.hcr_el2 = (HCR_EL2::VM::Enable
+                                         + HCR_EL2::RW::EL1IsAarch64).into();
         let mut vmpidr = 0;
         vmpidr |= 1 << 31;
         vmpidr |= self.vcpu_id;
