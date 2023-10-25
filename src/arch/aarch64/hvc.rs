@@ -67,8 +67,9 @@ fn init_hv(root_paddr: usize, vm_ctx_addr: usize) {
             mov x3, xzr           // Trap nothing from EL1 to El2.
             msr cptr_el2, x3"
         );
-        init_page_table(root_paddr);
-        init_sysregs();
+        // init_page_table(root_paddr);
+        msr!(VTTBR_EL2, root_paddr);
+        // init_sysregs();
         core::arch::asm!("
             tlbi	alle2         // Flush tlb
             dsb	nsh
@@ -98,6 +99,7 @@ fn init_sysregs() {
 
 fn init_page_table(vttbr: usize) {
     use aarch64_cpu::registers::{VTCR_EL2, VTTBR_EL2};
+    /* 
     VTCR_EL2.write(
         VTCR_EL2::PS::PA_36B_64GB   //0b001 36 bits, 64GB.
             + VTCR_EL2::TG0::Granule4KB
@@ -107,6 +109,7 @@ fn init_page_table(vttbr: usize) {
             + VTCR_EL2::SL0.val(0b01)
             + VTCR_EL2::T0SZ.val(64 - 36),
     );
+    */
     msr!(VTTBR_EL2, vttbr);
 }
 

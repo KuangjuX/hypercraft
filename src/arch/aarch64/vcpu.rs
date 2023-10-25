@@ -130,8 +130,17 @@ impl <H:HyperCraftHal> VCpu<H> {
         self.regs.vm_system_regs.sctlr_el1 = 0x30C50830;
         self.regs.vm_system_regs.cntkctl_el1 = 0;
         self.regs.vm_system_regs.pmcr_el0 = 0;
-        self.regs.vm_system_regs.vtcr_el2 = 0x8001355c;
-        self.regs.vm_system_regs.hcr_el2 = 0x80000001;  // Maybe we do not need smc setting? passthrough gic.
+        // self.regs.vm_system_regs.vtcr_el2 = 0x8001355c;
+        self.regs.vm_system_regs.vtcr_el2 = VTCR_EL2::PS::PA_36B_64GB   //0b001 36 bits, 64GB.
+                                          + VTCR_EL2::TG0::Granule4KB
+                                          + VTCR_EL2::SH0::Inner
+                                          + VTCR_EL2::ORGN0::NormalWBRAWA
+                                          + VTCR_EL2::IRGN0::NormalWBRAWA
+                                          + VTCR_EL2::SL0.val(0b01)
+                                          + VTCR_EL2::T0SZ.val(64 - 36);
+        //self.regs.vm_system_regs.hcr_el2 = 0x80000001;  // Maybe we do not need smc setting? passthrough gic.
+        self.regs.vm_system_regs.hcr_el2 = HCR_EL2::VM::Enable
+                                         + HCR_EL2::RW::EL1IsAarch64;
         let mut vmpidr = 0;
         vmpidr |= 1 << 31;
         vmpidr |= self.vcpu_id;
