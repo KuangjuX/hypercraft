@@ -38,7 +38,7 @@ pub fn hvc_guest_handler(
 }
 
 pub fn run_guest_by_trap2el2(token: usize, regs_addr: usize) -> usize {
-    // mode is in x7. hvc_type: HVC_SYS; event: HVC_SYS_SET_EL2
+    // mode is in x7. hvc_type: HVC_SYS; event: HVC_SYS_BOOT
     hvc_call(token, regs_addr, 0, 0, 0, 0, 0, 0)
 }
 
