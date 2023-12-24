@@ -13,7 +13,7 @@ use crate::{
     HyperError, HyperResult, VCpu, VmCpus, VmExitInfo,
 };
 use riscv_decode::Instruction;
-use rustsbi::RustSBI;
+use rustsbi::{Forward, RustSBI};
 use sbi_rt::{pmu_counter_get_info, pmu_counter_stop};
 use sbi_spec::binary::{HartMask, Physical, SbiRet};
 
@@ -194,123 +194,5 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
 
         CSR.hvip
             .read_and_set_bits(traps::interrupt::VIRTUAL_SUPERVISOR_EXTERNAL);
-    }
-}
-
-// forward to current SBI environment
-struct Forward;
-
-impl rustsbi::Fence for Forward {
-    #[inline]
-    fn remote_fence_i(&self, hart_mask: HartMask) -> SbiRet {
-        sbi_rt::remote_fence_i(hart_mask)
-    }
-
-    #[inline]
-    fn remote_sfence_vma(&self, hart_mask: HartMask, start_addr: usize, size: usize) -> SbiRet {
-        sbi_rt::remote_sfence_vma(hart_mask, start_addr, size)
-    }
-
-    #[inline]
-    fn remote_sfence_vma_asid(
-        &self,
-        hart_mask: HartMask,
-        start_addr: usize,
-        size: usize,
-        asid: usize,
-    ) -> SbiRet {
-        sbi_rt::remote_sfence_vma_asid(hart_mask, start_addr, size, asid)
-    }
-}
-
-impl rustsbi::Timer for Forward {
-    #[inline]
-    fn set_timer(&self, stime_value: u64) {
-        sbi_rt::set_timer(stime_value);
-        // following CSR settings would reside in VM::run function
-    }
-}
-
-impl rustsbi::Console for Forward {
-    #[inline]
-    fn write(&self, bytes: Physical<&[u8]>) -> SbiRet {
-        sbi_rt::console_write(bytes)
-    }
-
-    #[inline]
-    fn read(&self, bytes: Physical<&mut [u8]>) -> SbiRet {
-        sbi_rt::console_read(bytes)
-    }
-
-    #[inline]
-    fn write_byte(&self, byte: u8) -> SbiRet {
-        sbi_rt::console_write_byte(byte)
-    }
-}
-
-impl rustsbi::Reset for Forward {
-    fn system_reset(&self, reset_type: u32, reset_reason: u32) -> SbiRet {
-        sbi_rt::system_reset(reset_type, reset_reason)
-    }
-}
-
-impl rustsbi::Pmu for Forward {
-    #[inline]
-    fn num_counters(&self) -> usize {
-        sbi_rt::pmu_num_counters()
-    }
-
-    #[inline]
-    fn counter_get_info(&self, counter_idx: usize) -> SbiRet {
-        sbi_rt::pmu_counter_get_info(counter_idx)
-    }
-
-    #[inline]
-    fn counter_config_matching(
-        &self,
-        counter_idx_base: usize,
-        counter_idx_mask: usize,
-        config_flags: usize,
-        event_idx: usize,
-        event_data: u64,
-    ) -> SbiRet {
-        sbi_rt::pmu_counter_config_matching(
-            counter_idx_base,
-            counter_idx_mask,
-            config_flags,
-            event_idx,
-            event_data,
-        )
-    }
-
-    #[inline]
-    fn counter_start(
-        &self,
-        counter_idx_base: usize,
-        counter_idx_mask: usize,
-        start_flags: usize,
-        initial_value: u64,
-    ) -> SbiRet {
-        sbi_rt::pmu_counter_start(
-            counter_idx_base,
-            counter_idx_mask,
-            start_flags,
-            initial_value,
-        )
-    }
-
-    #[inline]
-    fn counter_stop(
-        &self,
-        counter_idx_base: usize,
-        counter_idx_mask: usize,
-        stop_flags: usize,
-    ) -> SbiRet {
-        sbi_rt::pmu_counter_stop(counter_idx_base, counter_idx_mask, stop_flags)
-    }
-
-    #[inline]
-    fn counter_fw_read(&self, counter_idx: usize) -> SbiRet {
-        sbi_rt::pmu_counter_fw_read(counter_idx)
     }
 }

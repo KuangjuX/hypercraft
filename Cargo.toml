@@ -14,8 +14,8 @@ arrayvec = { version = "0.7.2", default-features = false }
 spin = { version = "0.9", features = ["once", "rwlock", "spin_mutex"] }
 tock-registers = "0.8.1"
 # arceos crates
-page_table = { git = "https://github.com/rcore-os/arceos.git" }
-page_table_entry = { git = "https://github.com/rcore-os/arceos.git" }
+page_table = { git = "https://github.com/rcore-os/arceos.git", branch = "hypervisor" }
+page_table_entry = { git = "https://github.com/rcore-os/arceos.git", branch = "hypervisor" }
 
 [target.'cfg(target_arch = "riscv64")'.dependencies]
 riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }
