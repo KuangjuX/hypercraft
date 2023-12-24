@@ -12,7 +12,13 @@
     unused_assignments
 )]
 #![deny(missing_docs, warnings)]
-#![feature(naked_functions, asm_const, negative_impls, stdsimd)]
+#![feature(
+    naked_functions,
+    asm_const,
+    negative_impls,
+    stdsimd,
+    riscv_ext_intrinsics
+)]
 
 extern crate alloc;
 

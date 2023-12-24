@@ -308,7 +308,7 @@ impl<H: HyperCraftHal> VCpu<H> {
         use scause::{Exception, Interrupt, Trap};
         match scause.cause() {
             Trap::Exception(Exception::VirtualSupervisorEnvCall) => {
-                let sbi_msg = SbiMessage::from_regs(regs.guest_regs.gprs.a_regs()).ok();
+                let sbi_msg = SbiMessage::from_regs(regs.guest_regs.gprs.a_regs());
                 VmExitInfo::Ecall(sbi_msg)
             }
             Trap::Interrupt(Interrupt::SupervisorTimer) => VmExitInfo::TimerInterruptEmulation,

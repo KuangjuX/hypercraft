@@ -14,11 +14,12 @@ arrayvec = { version = "0.7.2", default-features = false }
 spin = { version = "0.9", features = ["once", "rwlock", "spin_mutex"] }
 tock-registers = "0.8.1"
 # arceos crates
-page_table = { path = "../page_table" }
-page_table_entry = { path = "../page_table_entry" }
+page_table = { git = "https://github.com/rcore-os/arceos.git" }
+page_table_entry = { git = "https://github.com/rcore-os/arceos.git" }
 
 [target.'cfg(target_arch = "riscv64")'.dependencies]
 riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }
 riscv-decode = { git = "https://github.com/KuangjuX/riscv-decode.git" }
-sbi-spec = { version = "0.0.6", features = ["legacy"] }
-sbi-rt = {version = "0.0.2", features = ["integer-impls", "legacy"]}
+sbi-spec = { version = "0.0.7-alpha.3", features = ["legacy"] }
+sbi-rt = { version = "0.0.3-rc.4", features = ["integer-impls", "legacy"] }
+rustsbi = { git = "https://github.com/rustsbi/rustsbi", features = ["machine"] }
