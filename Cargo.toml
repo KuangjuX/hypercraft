@@ -23,3 +23,8 @@ riscv-decode = { git = "https://github.com/KuangjuX/riscv-decode.git" }
 sbi-spec = { version = "0.0.7-alpha.3", features = ["legacy"] }
 sbi-rt = { version = "0.0.3-rc.4", features = ["integer-impls", "legacy"] }
 rustsbi = { git = "https://github.com/rustsbi/rustsbi", features = ["machine"] }
+
+[lib]
+name = "hypercraft"
+test = false
+bench = false
