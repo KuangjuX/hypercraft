@@ -14,7 +14,6 @@ use crate::{
 };
 use riscv_decode::Instruction;
 use rustsbi::{Forward, RustSBI};
-use sbi_rt::{pmu_counter_get_info, pmu_counter_stop};
 use sbi_spec::binary::{HartMask, Physical, SbiRet};
 
 /// A VM that is being run.
