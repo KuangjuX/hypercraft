@@ -27,7 +27,7 @@ pub struct VM<H: HyperCraftHal, G: GuestPageTableTrait> {
 
 #[derive(RustSBI)]
 struct VmSBI {
-    #[rustsbi(fence, timer, console, reset)]
+    #[rustsbi(fence, timer, console, reset, info)]
     forward: Forward,
 }
 
