@@ -3,19 +3,18 @@ use core::panic;
 use super::{
     devices::plic::{PlicState, MAX_CONTEXTS},
     regs::GeneralPurposeRegisters,
-    sbi::PmuFunction,
-    sbi::{BaseFunction, RemoteFenceFunction},
     traps,
     vcpu::{self, VmCpuRegisters},
     vm_pages::VmPages,
     HyperCallMsg, RiscvCsrTrait, CSR,
 };
 use crate::{
-    arch::sbi::SBI_ERR_NOT_SUPPORTED, vcpus::VM_CPUS_MAX, GprIndex, GuestPageTableTrait,
-    GuestPhysAddr, GuestVirtAddr, HyperCraftHal, HyperError, HyperResult, VCpu, VmCpus, VmExitInfo,
+    vcpus::VM_CPUS_MAX, GprIndex, GuestPageTableTrait, GuestPhysAddr, GuestVirtAddr, HyperCraftHal,
+    HyperError, HyperResult, VCpu, VmCpus, VmExitInfo,
 };
 use riscv_decode::Instruction;
-use sbi_rt::{pmu_counter_get_info, pmu_counter_stop};
+use rustsbi::{Forward, RustSBI};
+use sbi_spec::binary::{HartMask, Physical, SbiRet};
 
 /// A VM that is being run.
 pub struct VM<H: HyperCraftHal, G: GuestPageTableTrait> {
@@ -23,6 +22,13 @@ pub struct VM<H: HyperCraftHal, G: GuestPageTableTrait> {
     gpt: G,
     vm_pages: VmPages,
     plic: PlicState,
+    sbi: VmSBI,
+}
+
+#[derive(RustSBI)]
+struct VmSBI {
+    #[rustsbi(fence, timer, console, reset, info)]
+    forward: Forward,
 }
 
 impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
@@ -33,6 +39,7 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
             gpt,
             vm_pages: VmPages::default(),
             plic: PlicState::new(0xC00_0000),
+            sbi: VmSBI { forward: Forward },
         })
     }
 
@@ -58,43 +65,22 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
 
             match vm_exit_info {
                 VmExitInfo::Ecall(sbi_msg) => {
-                    if let Some(sbi_msg) = sbi_msg {
-                        match sbi_msg {
-                            HyperCallMsg::Base(base) => {
-                                self.handle_base_function(base, &mut gprs).unwrap();
-                            }
-                            HyperCallMsg::GetChar => {
-                                let c = sbi_rt::legacy::console_getchar();
-                                gprs.set_reg(GprIndex::A1, c);
-                            }
-                            HyperCallMsg::PutChar(c) => {
-                                sbi_rt::legacy::console_putchar(c);
-                            }
-                            HyperCallMsg::SetTimer(timer) => {
-                                sbi_rt::set_timer(timer as u64);
-                                // Clear guest timer interrupt
-                                CSR.hvip.read_and_clear_bits(
-                                    traps::interrupt::VIRTUAL_SUPERVISOR_TIMER,
-                                );
-                                //  Enable host timer interrupt
-                                CSR.sie
-                                    .read_and_set_bits(traps::interrupt::SUPERVISOR_TIMER);
-                            }
-                            HyperCallMsg::Reset(_) => {
-                                sbi_rt::system_reset(sbi_rt::Shutdown, sbi_rt::SystemFailure);
-                            }
-                            HyperCallMsg::RemoteFence(rfnc) => {
-                                self.handle_rfnc_function(rfnc, &mut gprs).unwrap();
-                            }
-                            HyperCallMsg::PMU(pmu) => {
-                                self.handle_pmu_function(pmu, &mut gprs).unwrap();
-                            }
-                            _ => todo!(),
-                        }
-                        advance_pc = true;
-                    } else {
-                        panic!()
+                    let sbi_ret =
+                        self.sbi
+                            .handle_ecall(sbi_msg.extension, sbi_msg.function, sbi_msg.params);
+                    // handle CSR operations to time extension
+                    if sbi_msg.extension == rustsbi::spec::time::EID_TIME
+                        && sbi_msg.function == rustsbi::spec::time::SET_TIMER
+                    {
+                        CSR.hvip
+                            .read_and_clear_bits(traps::interrupt::VIRTUAL_SUPERVISOR_TIMER);
+                        //  Enable host timer interrupt
+                        CSR.sie
+                            .read_and_set_bits(traps::interrupt::SUPERVISOR_TIMER);
                     }
+                    gprs.set_reg(GprIndex::A0, sbi_ret.error);
+                    gprs.set_reg(GprIndex::A1, sbi_ret.value);
+                    advance_pc = true;
                 }
                 VmExitInfo::PageFault {
                     fault_addr,
@@ -207,112 +193,5 @@ impl<H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
 
         CSR.hvip
             .read_and_set_bits(traps::interrupt::VIRTUAL_SUPERVISOR_EXTERNAL);
-    }
-
-    fn handle_base_function(
-        &self,
-        base: BaseFunction,
-        gprs: &mut GeneralPurposeRegisters,
-    ) -> HyperResult<()> {
-        match base {
-            BaseFunction::GetSepcificationVersion => {
-                let version = sbi_rt::get_spec_version();
-                gprs.set_reg(GprIndex::A1, version.major() << 24 | version.minor());
-                debug!(
-                    "GetSepcificationVersion: {}",
-                    version.major() << 24 | version.minor()
-                );
-            }
-            BaseFunction::GetImplementationID => {
-                let id = sbi_rt::get_sbi_impl_id();
-                gprs.set_reg(GprIndex::A1, id);
-            }
-            BaseFunction::GetImplementationVersion => {
-                let impl_version = sbi_rt::get_sbi_impl_version();
-                gprs.set_reg(GprIndex::A1, impl_version);
-            }
-            BaseFunction::ProbeSbiExtension(extension) => {
-                let extension = sbi_rt::probe_extension(extension as usize).raw;
-                gprs.set_reg(GprIndex::A1, extension);
-            }
-            BaseFunction::GetMachineVendorID => {
-                let mvendorid = sbi_rt::get_mvendorid();
-                gprs.set_reg(GprIndex::A1, mvendorid);
-            }
-            BaseFunction::GetMachineArchitectureID => {
-                let marchid = sbi_rt::get_marchid();
-                gprs.set_reg(GprIndex::A1, marchid);
-            }
-            BaseFunction::GetMachineImplementationID => {
-                let mimpid = sbi_rt::get_mimpid();
-                gprs.set_reg(GprIndex::A1, mimpid);
-            }
-        }
-        gprs.set_reg(GprIndex::A0, 0);
-        Ok(())
-    }
-
-    fn handle_pmu_function(
-        &self,
-        pmu: PmuFunction,
-        gprs: &mut GeneralPurposeRegisters,
-    ) -> HyperResult<()> {
-        gprs.set_reg(GprIndex::A0, 0);
-        match pmu {
-            PmuFunction::GetNumCounters => gprs.set_reg(GprIndex::A1, sbi_rt::pmu_num_counters()),
-            PmuFunction::GetCounterInfo(counter_index) => {
-                let sbi_ret = pmu_counter_get_info(counter_index as usize);
-                gprs.set_reg(GprIndex::A0, sbi_ret.error);
-                gprs.set_reg(GprIndex::A1, sbi_ret.value);
-            }
-            PmuFunction::StopCounter {
-                counter_index,
-                counter_mask,
-                stop_flags,
-            } => {
-                let sbi_ret = pmu_counter_stop(
-                    counter_index as usize,
-                    counter_mask as usize,
-                    stop_flags as usize,
-                );
-                gprs.set_reg(GprIndex::A0, sbi_ret.error);
-                gprs.set_reg(GprIndex::A1, sbi_ret.value);
-            }
-        }
-        Ok(())
-    }
-
-    fn handle_rfnc_function(
-        &self,
-        rfnc: RemoteFenceFunction,
-        gprs: &mut GeneralPurposeRegisters,
-    ) -> HyperResult<()> {
-        gprs.set_reg(GprIndex::A0, 0);
-        match rfnc {
-            RemoteFenceFunction::FenceI {
-                hart_mask,
-                hart_mask_base,
-            } => {
-                let sbi_ret = sbi_rt::remote_fence_i(hart_mask as usize, hart_mask_base as usize);
-                gprs.set_reg(GprIndex::A0, sbi_ret.error);
-                gprs.set_reg(GprIndex::A1, sbi_ret.value);
-            }
-            RemoteFenceFunction::RemoteSFenceVMA {
-                hart_mask,
-                hart_mask_base,
-                start_addr,
-                size,
-            } => {
-                let sbi_ret = sbi_rt::remote_sfence_vma(
-                    hart_mask as usize,
-                    hart_mask_base as usize,
-                    start_addr as usize,
-                    size as usize,
-                );
-                gprs.set_reg(GprIndex::A0, sbi_ret.error);
-                gprs.set_reg(GprIndex::A1, sbi_ret.value);
-            }
-        }
-        Ok(())
     }
 }

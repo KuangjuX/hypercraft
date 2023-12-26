@@ -28,7 +28,7 @@ impl PrivilegeLevel {
 /// Identifies the reason for a trap taken from a vCPU.
 pub enum VmExitInfo {
     /// ECALLs from VS mode.
-    Ecall(Option<SbiMessage>),
+    Ecall(SbiMessage),
     /// G-stage page faluts
     PageFault {
         /// Page fault addr.

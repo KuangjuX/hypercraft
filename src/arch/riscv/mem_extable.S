@@ -26,7 +26,8 @@ _copy_to_guest:
     beq   t2, a2, _ret_from_copy
     lb    t3, (a1)
 2:
-    hsv.b t3, (a0)
+    /* hsv.b t3, (a0) */
+    .insn r 0x73, 0x4, 0x31, x0, t3, a0
     add_extable 2b
     addi  a0, a0, 1
     addi  a1, a1, 1
@@ -44,7 +45,8 @@ _copy_from_guest:
 1:
     beq   t2, a2, _ret_from_copy
 2:
-    hlv.b t3, (a1)
+    /* hlv.b t3, (a1) */
+    .insn i 0x73, 0x4, t3, a1, 0x600
     add_extable 2b
     sb    t3, (a0)
     addi  a0, a0, 1
@@ -66,7 +68,8 @@ _fetch_guest_instruction:
     // a fault and will stick SCAUSE in t1.
     la    t0, 4f
 1:
-    hlvx.hu t2, (a0)
+    /* hlvx.hu t2, (a0) */
+    .insn i 0x73, 0x4, t2, a0, 0x643
     add_extable 1b
     sh    t2, (a1)
     addi  a0, a0, 2
@@ -77,7 +80,8 @@ _fetch_guest_instruction:
     bne   t2, t3, 3f
     // Load the next half-word.
 2:
-    hlvx.hu t2, (a0)
+    /* hlvx.hu t2, (a0) */
+    .insn i 0x73, 0x4, t2, a0, 0x643
     add_extable 2b
     sh    t2, (a1)
 3:

@@ -22,7 +22,6 @@ pub use vmexit::VmExitInfo;
 use self::csrs::{traps, ReadWriteCsr, RiscvCsrTrait, CSR};
 use self::devices::plic::PlicState;
 use self::vcpu::VmCpuRegisters;
-use sbi::BaseFunction;
 
 /// Initialize the hypervisor runtime.
 pub fn init_hv_runtime() {

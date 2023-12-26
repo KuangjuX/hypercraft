@@ -20,5 +20,10 @@ page_table_entry = { path = "../page_table_entry" }
 [target.'cfg(target_arch = "riscv64")'.dependencies]
 riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }
 riscv-decode = { git = "https://github.com/KuangjuX/riscv-decode.git" }
-sbi-spec = { version = "0.0.6", features = ["legacy"] }
-sbi-rt = {version = "0.0.2", features = ["integer-impls", "legacy"]}
+sbi-spec = "0.0.7-alpha.3"
+rustsbi = { git = "https://github.com/rustsbi/rustsbi", features = ["forward"] }
+
+[lib]
+name = "hypercraft"
+test = false
+bench = false
