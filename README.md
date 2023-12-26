@@ -27,7 +27,7 @@ Download disk file from Baidu Cloud Disk to `$(WORKSPACE)/guest/linux`:
 ```
 # build & run
 cd arceos
-make ARCH=riscv64 A=apps/hv HY=y LOG=info run
+make ARCH=riscv64 A=apps/hv HV=y LOG=info run
 ```
 
 ## RoadMap
