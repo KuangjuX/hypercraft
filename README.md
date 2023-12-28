@@ -30,7 +30,7 @@ cd arceos
 make ARCH=riscv64 A=apps/hv HV=y LOG=info run
 ```
 
-**Note**
+**Note**  
 The `hypercraft` requires upgrading the qemu version to 7.1/7.2, and it has not been tested with version 8.x.
 
 ## RoadMap
