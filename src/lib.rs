@@ -16,7 +16,6 @@
     naked_functions,
     asm_const,
     negative_impls,
-    stdsimd,
     riscv_ext_intrinsics
 )]
 
